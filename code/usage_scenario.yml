@@ -11,6 +11,12 @@ services:
       - --gpus=all
 
 flow:
+  - name: Wait for ollama server
+    container: gcb-ai-model
+    commands:
+      - type: console
+        command: sleep 5
+
   - name: Download gemma3-1b
     container: gcb-ai-model
     commands:

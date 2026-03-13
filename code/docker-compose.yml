@@ -4,11 +4,14 @@ services:
     build: .
     depends_on:
       - gcb-ai-model
-    command: >-
-      sh -c "python manage.py migrate &&
-      python manage.py collectstatic --noinput &&
-      python manage.py import_sample_data &&
-      gunicorn todo_project.wsgi:application --bind 0.0.0.0:8000"
+    command:
+      - sh
+      - -c
+      - |
+          python manage.py migrate &&
+          python manage.py collectstatic --noinput &&
+          python manage.py import_sample_data &&
+          gunicorn todo_project.wsgi:application --bind 0.0.0.0:8000
     # volumes:
       # - /Users/didi/code/easytodo:/app
       # - media:/app/media
@@ -23,8 +26,8 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile
-      ports:
-        - "8080:80"
+    # ports:
+    #   - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/energy_headers.js:/etc/nginx/energy_headers.js:ro
