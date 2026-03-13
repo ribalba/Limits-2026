@@ -1,0 +1,20 @@
+{
+  "users": [
+    {"username": "testuser", "password": "testuser"}
+  ],
+  "todos": [
+    {
+      "username": "testuser",
+      "title": "Write benchmark notes",
+      "text": "Draft the API benchmark methodology.",
+      "done": false,
+      "file": "sample_files/sample.txt"
+    },
+    {
+      "username": "testuser",
+      "title": "Run load test",
+      "text": "Capture median and p95 latency for each endpoint.",
+      "done": true
+    }
+  ]
+}

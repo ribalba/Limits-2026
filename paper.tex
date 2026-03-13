@@ -9,17 +9,17 @@
 %- die Rolle von AI ist mir hier auch noch nicht 100% klar.
 
 
-% Stakeholder nach hinten in discussion. 
+% Stakeholder nach hinten in discussion.
 
-%% Critiques of standard. Why the standard is lacking. 
+%% Critiques of standard. Why the standard is lacking.
 
 %% as no implemtation exits we want to fill the gap
 
-%% Background kapitel/ 
+%% Background kapitel/
 
-%% Stakeholder in Background - Stakeholder anders bennnen. Perspective 
+%% Stakeholder in Background - Stakeholder anders bennnen. Perspective
 
-%% Related work AI als nix besonders und Keine subsections sondern fett. 
+%% Related work AI als nix besonders und Keine subsections sondern fett.
 
 %% TODO: Make network one metric as the GMT can not distinquish bvetween bytes in and out
 
@@ -87,7 +87,7 @@ Software increasingly reaches users through HTTP interfaces that sit atop opaque
 
 A recurring idea in sustainable computing is to move disclosure closer to the interface where choices are actually made. The Software Carbon Intensity (SCI) specification expresses emissions relative to a functional unit \(R\), rather than only as annual or service-level aggregates \cite{gsf-sci}. For web systems, the natural functional unit is often the individual HTTP transaction. If request-level impact were available at the protocol boundary, clients could incorporate it into software decisions such as retry behaviour, batching, caching, provider selection, or prompt length. HTTP is therefore an attractive disclosure surface: it is already the interoperability layer across organisations, languages, and infrastructures, and it already carries operational metadata in response headers.
 
-The basic idea of carrying carbon information in HTTP is not new. In 2023, Martin proposed an Internet-Draft for a single response header, \texttt{Carbon-Emissions-Scope-2}, intended to communicate the emissions associated with processing a request and producing the response \cite{martin-http-carbon-emissions-scope-2-00}. Discussion in the HTTP working-group community then focused on whether such metadata should be sent by default or negotiated, how much overhead an additional header introduces, and how field naming and value design should be handled \cite{httpwg-admin-issue-52-carbon-emissions,ietf-http-wg-mailinglist-carbon-header-thread}. More recently, a new 2026 Internet-Draft has proposed a structured \texttt{Sustainability} response header carrying multiple dimensions such as Scope~2 and Scope~3 emissions, explicitly addressing concerns about metadata overhead through compression, opt-in behaviour, and proxy aggregation \cite{besleaga-green-sustainability-header-00}. 
+The basic idea of carrying carbon information in HTTP is not new. In 2023, Martin proposed an Internet-Draft for a single response header, \texttt{Carbon-Emissions-Scope-2}, intended to communicate the emissions associated with processing a request and producing the response \cite{martin-http-carbon-emissions-scope-2-00}. Discussion in the HTTP working-group community then focused on whether such metadata should be sent by default or negotiated, how much overhead an additional header introduces, and how field naming and value design should be handled \cite{httpwg-admin-issue-52-carbon-emissions,ietf-http-wg-mailinglist-carbon-header-thread}. More recently, a new 2026 Internet-Draft has proposed a structured \texttt{Sustainability} response header carrying multiple dimensions such as Scope~2 and Scope~3 emissions, explicitly addressing concerns about metadata overhead through compression, opt-in behaviour, and proxy aggregation \cite{besleaga-green-sustainability-header-00}.
 
 However, the existing discussion is centred primarily on \emph{header semantics}: what the field should be called, what units it should use, whether it should be negotiated, and how to limit the disclosure overhead. The harder systems problem remains largely unresolved: \emph{how can a server produce credible per-request values at all?} Direct real-time energy measurement of arbitrary HTTP requests is difficult without dedicated hardware access and careful experimental control. In production, attribution is further complicated by multi-tenancy, virtualization, fluctuating load, and request fan-out across internal and external dependencies. In other words, the conceptual standardisation effort is ahead of the engineering method needed to make such disclosure operational.
 
@@ -104,7 +104,7 @@ and (4) it evaluates the feasibility and overhead of this approach on convention
 %-----------------------------------------------------------------------------------------
 
 \paragraph{Carbon accounting for software and systems.}
-A central challenge in green software is aligning engineering observables with carbon-accounting concepts. The ISO standard Software Carbon Intensity (SCI) specification frames software impact as operational emissions plus embodied emissions, normalised by a functional unit \(R\) \cite{gsf-sci}. This framing is important for HTTP-based systems because it shifts attention away from annual or service-level totals and toward the unit at which software is actually consumed. For many web services, that unit is naturally the individual request. This broader framing is consistent with prior work in green software engineering, which has argued that software decisions materially shape ICT-related energy use and carbon emissions, and that sustainability should be treated as a software-quality concern rather than only as an infrastructure concern \cite{kern2015impacts,lago2015framing,verdecchia2021green}. 
+A central challenge in green software is aligning engineering observables with carbon-accounting concepts. The ISO standard Software Carbon Intensity (SCI) specification frames software impact as operational emissions plus embodied emissions, normalised by a functional unit \(R\) \cite{gsf-sci}. This framing is important for HTTP-based systems because it shifts attention away from annual or service-level totals and toward the unit at which software is actually consumed. For many web services, that unit is naturally the individual request. This broader framing is consistent with prior work in green software engineering, which has argued that software decisions materially shape ICT-related energy use and carbon emissions, and that sustainability should be treated as a software-quality concern rather than only as an infrastructure concern \cite{kern2015impacts,lago2015framing,verdecchia2021green}.
 
 \paragraph{Why HTTP is a plausible disclosure surface?}
 HTTP is an attractive layer for impact disclosure because it is already the dominant interoperability boundary for digital services. It is where costs are billed, quotas are enforced, latency is observed, and usage is counted. Exposing sustainability information at the same boundary would therefore make environmental impact legible at the point where technical and organisational decisions are made. More generally, HTTP explicitly supports extensibility through header fields \cite{rfc9110}, and Structured Field Values provide an established way to encode non-trivial metadata in interoperable form \cite{rfc8941}.
@@ -115,7 +115,7 @@ Environmental information only becomes operationally useful once it is surfaced 
 The most direct prior work on HTTP-level disclosure is Martin's 2023 Internet-Draft, which proposed a single response header (Carbon-Emissions-Scope-2) for reporting the emissions associated with processing a request and producing the corresponding response \cite{martin-http-carbon-emissions-scope-2-00}. The proposal is conceptually important because it establishes the basic idea that environmental impact can be surfaced directly in HTTP responses, analogously to other operational metadata. A more recent 2026 Internet-Draft expands this idea by proposing a structured \texttt{Sustainability} response header \cite{besleaga-green-sustainability-header-00}. In contrast to the single-value design of Martin's draft, this proposal uses a Structured Field representation and is explicitly designed to carry multiple sustainability dimensions, including Scope~2 and Scope~3 emissions.  What these proposals do \textbf{not} yet resolve is the server-side problem of how a provider should generate credible per-request values. A field name and syntax can standardise \emph{what} is communicated, but not \emph{how} the underlying quantity is obtained. For real systems, that is the harder problem.
 
 \paragraph{Visibility and web-facing sustainability information.}
-\textit{Green Web Meter} presents a real-time digital sustainability monitoring system for websites and web applications, showing that environmental information can be integrated into operational web tooling and exposed in ways that support assessment and improvement \cite{sala2024greenwebmeter}. CASPER shows that distributed web services can respond to carbon signals through carbon-aware scheduling and provisioning decisions while still respecting service-level constraints \cite{souza2023casper}. 
+\textit{Green Web Meter} presents a real-time digital sustainability monitoring system for websites and web applications, showing that environmental information can be integrated into operational web tooling and exposed in ways that support assessment and improvement \cite{sala2024greenwebmeter}. CASPER shows that distributed web services can respond to carbon signals through carbon-aware scheduling and provisioning decisions while still respecting service-level constraints \cite{souza2023casper}.
 
 \paragraph{API user (consumer) perspective}
 For API consumers per request resource consumption matters because service usage is typically visible through price, latency, and quota consumption, but not through energy or \(\mathrm{CO_2e}\). When an application calls \texttt{/login}, \texttt{/search}, or \texttt{/ai}, the client can count requests and measure response times, yet it usually cannot observe the emissions associated with those calls. If impact were disclosed directly in the response, consumers could use it for carbon accounting, provider comparison, and software optimisation decisions such as batching, caching, retry behaviour, or prompt reduction. This is precisely the kind of per-functional-unit reasoning encouraged by SCI \cite{gsf-sci}.
@@ -124,7 +124,7 @@ For API consumers per request resource consumption matters because service usage
 Providers face the complementary problem. They are increasingly expected to understand, reduce, and sometimes disclose the environmental impact of their services, but request-level attribution is difficult in contemporary deployments. Virtualisation, multi-tenancy, managed platforms, and opaque downstream dependencies all make direct power attribution difficult or impossible in production. At the same time, providers would benefit from a practical disclosure mechanism not only for external transparency but also for internal optimisation and observability. A disclosure mechanism at the HTTP layer could support both uses, provided that the values can be generated cheaply and consistently.
 
 \paragraph{Why a model is needed}
-Previous work on software sustainability measurement makes clear that the field still relies on a heterogeneous collection of setups, methods, and abstractions, and that a reference measurement model is needed to structure and compare approaches \cite{guldner2024gsmm}. For HTTP sustainability disclosure, this implies that direct online measurement is not a prerequisite for useful disclosure. Instead, what is needed is a defensible method that links controlled measurements to runtime-observable request features. The theoretical background leads to a clear gap. SCI provides the accounting logic, prior HTTP drafts provide candidate disclosure semantics, and related systems work motivates making carbon information visible at software interfaces. What remains missing is a practical bridge from \emph{measurement} to \emph{per-request disclosure}. 
+Previous work on software sustainability measurement makes clear that the field still relies on a heterogeneous collection of setups, methods, and abstractions, and that a reference measurement model is needed to structure and compare approaches \cite{guldner2024gsmm}. For HTTP sustainability disclosure, this implies that direct online measurement is not a prerequisite for useful disclosure. Instead, what is needed is a defensible method that links controlled measurements to runtime-observable request features. The theoretical background leads to a clear gap. SCI provides the accounting logic, prior HTTP drafts provide candidate disclosure semantics, and related systems work motivates making carbon information visible at software interfaces. What remains missing is a practical bridge from \emph{measurement} to \emph{per-request disclosure}.
 
 %-----------------------------------------------------------------------------------------
 \section{Method}
@@ -245,7 +245,7 @@ We used the GMT ``ML/AI Profiling'' profile on a dedicated server-class system w
   \item OS: Ubuntu 24.04 (NOP Linux) \cite{greenmetricstool}
 \end{itemize}
 
-We intentionally left turbo boost and dynamic frequency scaling enabled to mimic a real deployment more closely. The machine is running a specialised Linux flavour called NOP Linux which has all processes disabled that might interfere with correct measurements. All data processing was done on a seperate machine. 
+We intentionally left turbo boost and dynamic frequency scaling enabled to mimic a real deployment more closely. The machine is running a specialised Linux flavour called NOP Linux which has all processes disabled that might interfere with correct measurements. All data processing was done on a seperate machine.
 
 \subsection{Measurment practice}
 In order to get accurate measurments we followed the following measurement protocol, adapted from best practice in controlled energy benchmarking:
@@ -293,7 +293,7 @@ For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve loca
   \item the inference configuration was held constant across runs (e.g., decoding settings), so that token count is an informative proxy for work.
 \end{itemize}
 
-We treat the token count \(\tau\) as a first-class measurement variable for \texttt{/ai}. In our prototype, \(\tau\) is obtained from the application layer (which already observes generated token counts via the inference runtime) and is exposed to the HTTP server as a request/response-scoped variable. This enables fitting and evaluating token-linear models \(\widehat{E}_{ai}(\tau)\) without requiring invasive GPU telemetry in production. 
+We treat the token count \(\tau\) as a first-class measurement variable for \texttt{/ai}. In our prototype, \(\tau\) is obtained from the application layer (which already observes generated token counts via the inference runtime) and is exposed to the HTTP server as a request/response-scoped variable. This enables fitting and evaluating token-linear models \(\widehat{E}_{ai}(\tau)\) without requiring invasive GPU telemetry in production.
 
 Prior work suggests that generated token count is a practical proxy for LLM inference cost under fixed serving conditions. Output length has been shown to scale approximately linearly with inference latency, and prior energy studies also report strong correlations between energy use and output-token count \cite{yang2024queueing,poddar2025towards,caravaca2025promptstopower}. This makes it feasible to use generated token count as a factor in our \texttt{/ai} endpoint model.
 
@@ -387,24 +387,21 @@ Listing~\ref{lst:json-registry} shows the registry format used by the NGINX modu
 
 \subsection{Header fields: names, semantics, and standardisation direction}
 
-\paragraph{Why a single header is not enough.}
 The current standardisation discussion is valuable for defining a common disclosure surface, but a single aggregated sustainability field is too compact for the present stage of the problem. It can communicate \emph{a} number, yet it collapses the assumptions needed to interpret that number: whether it reflects energy or only emissions, whether embodied impacts are included, which grid-intensity value was used, and what system boundary the server assumed. For implementation, comparison, and critique, these dimensions must remain separable.
 
-We therefore use multiple response headers in the prototype. This is not primarily a claim that the final standard must expose many independent fields; rather, it is a practical design for making the underlying accounting choices explicit during experimentation. Separate headers allow clients, operators, and researchers to distinguish raw energy, conversion factors, operational emissions, and embodied allocations, and thus support more detailed analysis than a single pre-composed value. Once these semantics stabilise, the same information could still be represented in a single structured field.
+We therefore use multiple response headers in this example. This is not primarily a claim that the final standard must expose many independent fields; rather, it is a practical design for making the underlying accounting choices explicit during experimentation. Separate headers allow clients, operators, and researchers to distinguish raw energy, conversion factors, operational emissions, and embodied allocations, and thus support more detailed analysis than a single pre-composed value.
 
 \textbf{Proposed standard header fields.} The following fields are intended as \emph{response} headers, scoped to the response-producing component (typically the origin server):
 \begin{itemize}
   \item \texttt{Request-Energy}: Energy attributable to handling this request, in \(\mathrm{mWh}\).
   \item \texttt{Grid-Intensity}: Grid intensity used for operational conversion, in \(\mathrm{gCO_2e/kWh}\).
-  \item \texttt{Request-Operational-CO2e}: Operational emissions for this request, recommended in \(\mathrm{mgCO_2e}\) to fit Structured Field decimals.
   \item \texttt{Request-Embodied-CO2e}: Embodied emissions allocated to this request, in \(\mathrm{mgCO_2e}\).
-  \item \texttt{Request-CO2e}: Total emissions for this request, in \(\mathrm{mgCO_2e}\).
+  \item \texttt{Request-SCI}: Total emissions for this request, in \(\mathrm{mgCO_2e}\).
 \end{itemize}
 
-This enables every stakeholder to calculate the SCI for each request. 
+In Listing~\ref{lst:curl} one can see the exact headers that are returned for an example curl request.
 
-\textbf{Exact format (prototype, shown for clarity).} Listing~\ref{lst:curl} reproduces the example curl output from the outline. 
-
+(TODO: Update this with new values from benchmark)
 \begin{lstlisting}[float,language=bash,caption={Example response headers from the prototype NGINX module (from the outline).},label={lst:curl}]
 curl -sS -D - -o /dev/null \
   -X POST "http://localhost:8080/login" \
@@ -419,13 +416,15 @@ Content-Length: 56
 Connection: keep-alive
 Request-Energy: 3.756400
 Grid-Intensity: 250.500000
-Operational-Carbon-gCO2eq: 940.978200
-Request-Carbon-gCO2eq: 940.978201
+Request-Embodied-CO2e: 940.978200
+Request-SCI: 940.978201
 \end{lstlisting}
 
 
 \subsection{Grid intensity handling.}
-Grid intensity can be (i) a deployment-time constant (e.g., location average), (ii) read from a periodically updated local file, or (iii) fetched from an internal endpoint. We recommend caching with a TTL aligned to the signal granularity (e.g., 5-60 minutes) to avoid network amplification and to ensure stable performance. Where time shifting or multi-region deployments exist, the intensity should be scoped to the execution region (and, ideally, to marginal intensity), but the paper treats this as a future extension rather than a requirement.
+Including grid intensity is important because request energy alone does not tell a client what the corresponding operational emissions are. In contemporary cloud and platform settings, the requester often does not know where a service instance is physically running, whether traffic is shifted between regions, or which electricity mix powers the underlying data centre at a given time. Exposing grid intensity therefore makes a crucial hidden assumption explicit: it links the measured or estimated energy demand of a request to the carbon characteristics of the electricity actually used. Without this additional parameter, two requests with identical energy use could appear equivalent even though they cause materially different emissions because they are served from different grids.
+
+Grid intensity can be (i) a deployment-time constant (e.g., location average), (ii) read from a periodically updated local file, or (iii) fetched from an internal endpoint. We recommend caching with a TTL aligned to the signal granularity (e.g., 5-60 minutes) to avoid network amplification and to ensure stable performance. Where time shifting or multi-region deployments exist, the intensity should be scoped to the execution region (and, ideally, to marginal intensity), this paper treats this as a future extension rather than a requirement.
 
 
 \section{Evaluation}
