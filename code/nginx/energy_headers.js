@@ -222,18 +222,14 @@ function addCarbonHeaders(r) {
     }
 
     var embodied = embodiedRate * timeSec;
-    var operational = energy * gridIntensity;
-    var total = embodied + operational;
+    var embodiedMg = embodied * 1000;
+    var operationalMg = (energy * gridIntensity) / 1000;
+    var totalMg = embodiedMg + operationalMg;
 
-    r.headersOut["X-Energy-Value"] = fixed(energy);
-    r.headersOut["X-Embodied-Rate"] = fixed(embodiedRate);
-    r.headersOut["X-Embodied-gCO2eq"] = fixed(embodied);
-    r.headersOut["X-Grid-Intensity"] = fixed(gridIntensity);
-    r.headersOut["X-Operational-gCO2eq"] = fixed(operational);
-    r.headersOut["X-Request-Carbon-gCO2eq"] = fixed(total);
-    r.headersOut["X-Request-Time-Sec"] = fixed(timeSec);
-    r.headersOut["X-Data-Size-Bytes"] = String(context.dataSize);
-    r.headersOut["X-Total-Tokens"] = String(context.totalTokens);
+    r.headersOut["Request-Energy"] = fixed(energy);
+    r.headersOut["Grid-Intensity"] = fixed(gridIntensity);
+    r.headersOut["Request-Embodied-CO2e"] = fixed(embodiedMg);
+    r.headersOut["Request-SCI"] = fixed(totalMg);
 }
 
 export default { addCarbonHeaders };

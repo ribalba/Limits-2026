@@ -1,0 +1,45 @@
+
+services:
+  web:
+    build: .
+    depends_on:
+      - gcb-ai-model
+    command:
+      - sh
+      - -c
+      - |
+          python manage.py migrate &&
+          python manage.py collectstatic --noinput &&
+          python manage.py import_sample_data &&
+          gunicorn todo_project.wsgi:application --bind 0.0.0.0:8000
+    # volumes:
+      # - /Users/didi/code/easytodo:/app
+      # - media:/app/media
+      # - static:/app/static
+    environment:
+      - DJANGO_SETTINGS_MODULE=todo_project.settings
+      - OLLAMA_BASE_URL=http://gcb-ai-model:11434
+      - OLLAMA_MODEL=gemma3:1b
+      - OLLAMA_TIMEOUT_SECONDS=60
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    # ports:
+    #   - "8080:80"
+    volumes:
+      - ./nginx/nginx_no_header.conf:/etc/nginx/nginx.conf:ro
+      # - media:/app/media:ro
+      # - static:/app/static:ro
+    depends_on:
+      - web
+  bench:
+    build:
+      context: .
+      dockerfile: Dockerfile.bench
+    depends_on:
+      - nginx
+
+  gcb-ai-model:
+    image: ollama/ollama
