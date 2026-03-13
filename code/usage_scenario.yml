@@ -5,10 +5,10 @@ description: This is a benchmark for the EasyTodo application. It simulates a us
 
 compose-file: !include docker-compose.yml
 
-# services:
-#   gcb-ai-model:
-#     docker-run-args:
-#       - --gpus=all
+services:
+  gcb-ai-model:
+    docker-run-args:
+      - --gpus=all
 
 flow:
   - name: Wait for ollama server
