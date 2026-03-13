@@ -35,6 +35,16 @@
     "embodied": 0.00001,
     "grid_intensity": 250.5
   },
+  "/ai": {
+    "energy_model": {
+      "kind": "linear",
+      "intercept": 0.0,
+      "prompt_token_coeff": 0.0,
+      "generated_token_coeff": 0.0
+    },
+    "embodied": 0.00001,
+    "grid_intensity": 250.5
+  },
   "/deleteAllToDos": {
     "energy_model": { "kind": "constant", "value": 0.0517 },
     "embodied": 0.00001,

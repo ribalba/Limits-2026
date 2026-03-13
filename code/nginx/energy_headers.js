@@ -36,12 +36,59 @@ function dataSizeBytes(r) {
     return requestBytes;
 }
 
+function responseHeaderValue(r, names) {
+    if (!r.headersOut) {
+        return null;
+    }
+
+    for (var i = 0; i < names.length; i++) {
+        var name = names[i];
+        var value = r.headersOut[name];
+        if (value !== undefined) {
+            return value;
+        }
+
+        value = r.headersOut[name.toLowerCase()];
+        if (value !== undefined) {
+            return value;
+        }
+    }
+
+    return null;
+}
+
+function modelNumber(source, keys, fallback) {
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        if (source[key] !== undefined) {
+            return toNumber(source[key], fallback);
+        }
+    }
+    return fallback;
+}
+
 function energyConfigForPath(path) {
     var normalized = normalizePath(path);
     if (energy_config[normalized]) {
         return energy_config[normalized];
     }
     return null;
+}
+
+function featureValue(context, input) {
+    if (input === "time") {
+        return context.timeSec;
+    }
+    if (input === "prompt_tokens") {
+        return context.promptTokens;
+    }
+    if (input === "generated_tokens") {
+        return context.generatedTokens;
+    }
+    if (input === "total_tokens" || input === "token_count" || input === "tokens") {
+        return context.totalTokens;
+    }
+    return context.dataSize;
 }
 
 function evaluateCurve(model, context) {
@@ -68,7 +115,7 @@ function evaluateCurve(model, context) {
 
     points.sort(function (a, b) { return a[0] - b[0]; });
 
-    var xValue = model.input === "time" ? context.timeSec : context.dataSize;
+    var xValue = featureValue(context, model.input);
     var left = points[0];
     var right = points[points.length - 1];
     var extrapolate = model.extrapolate || "linear_tail";
@@ -118,14 +165,17 @@ function evaluateEnergy(model, context) {
 
     var kind = model.kind || "constant";
     if (kind === "constant") {
-        return toNumber(model.value, 0);
+        return modelNumber(model, ["value", "value_mWh"], 0);
     }
 
     if (kind === "linear") {
         return (
-            toNumber(model.intercept, 0) +
-            toNumber(model.time_coeff, 0) * context.timeSec +
-            toNumber(model.size_coeff, 0) * context.dataSize
+            modelNumber(model, ["intercept", "intercept_mWh"], 0) +
+            modelNumber(model, ["time_coeff", "time_coeff_mWh_per_s"], 0) * context.timeSec +
+            modelNumber(model, ["size_coeff", "size_coeff_mWh_per_byte"], 0) * context.dataSize +
+            modelNumber(model, ["token_coeff", "token_coeff_mWh_per_token"], 0) * context.totalTokens +
+            modelNumber(model, ["prompt_token_coeff", "prompt_token_coeff_mWh_per_token"], 0) * context.promptTokens +
+            modelNumber(model, ["generated_token_coeff", "generated_token_coeff_mWh_per_token"], 0) * context.generatedTokens
         );
     }
 
@@ -155,8 +205,11 @@ function addCarbonHeaders(r) {
 
     var context = {
         timeSec: timeSec,
-        dataSize: dataSizeBytes(r)
+        dataSize: dataSizeBytes(r),
+        promptTokens: toNumber(responseHeaderValue(r, ["X-Prompt-Tokens"]), 0),
+        generatedTokens: toNumber(responseHeaderValue(r, ["X-Generated-Tokens"]), 0)
     };
+    context.totalTokens = context.promptTokens + context.generatedTokens;
 
     var energy = 0;
     var embodiedRate = 0;
@@ -164,8 +217,8 @@ function addCarbonHeaders(r) {
 
     if (endpointConfig) {
         energy = evaluateEnergy(endpointConfig.energy_model, context);
-        embodiedRate = toNumber(endpointConfig.embodied, toNumber(endpointConfig.emboddied, 0));
-        gridIntensity = toNumber(endpointConfig.grid_intensity, 0);
+        embodiedRate = modelNumber(endpointConfig, ["embodied", "emboddied", "embodied_rate_gCO2e_per_s"], 0);
+        gridIntensity = modelNumber(endpointConfig, ["grid_intensity", "grid_intensity_gCO2e_per_kWh"], 0);
     }
 
     var embodied = embodiedRate * timeSec;
@@ -180,6 +233,7 @@ function addCarbonHeaders(r) {
     r.headersOut["X-Request-Carbon-gCO2eq"] = fixed(total);
     r.headersOut["X-Request-Time-Sec"] = fixed(timeSec);
     r.headersOut["X-Data-Size-Bytes"] = String(context.dataSize);
+    r.headersOut["X-Total-Tokens"] = String(context.totalTokens);
 }
 
 export default { addCarbonHeaders };

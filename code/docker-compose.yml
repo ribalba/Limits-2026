@@ -27,7 +27,6 @@ services:
         - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/energy_headers.js:/etc/nginx/energy_headers.js:ro
       - ./url_energy.json:/etc/nginx/url_energy.json:ro
       # - media:/app/media:ro

@@ -96,7 +96,7 @@ This paper addresses exactly that implementation gap. Our contribution is not th
 This paper makes four contributions:
 (1) it distinguishes the protocol-level question of \emph{what to disclose} from the systems question of \emph{how to generate request-level values}, and argues that the latter is the missing piece in current HTTP sustainability discussions;
 (2) it presents a measurement-to-model method that converts controlled endpoint benchmarks into compact runtime-evaluable energy models;
-(3) it implements this approach as an NGINX module that reads a JSON model registry and emits per-request energy and \(\mathrm{CO_2e}\) metadata, including operational and embodied components;
+(3) it implements this approach as an nginx module that reads a JSON model registry and emits per-request energy and \(\mathrm{CO_2e}\) metadata, including operational and embodied components;
 and (4) it evaluates the feasibility and overhead of this approach on conventional web endpoints and on an AI inference endpoint.
 
 %-----------------------------------------------------------------------------------------
@@ -253,7 +253,7 @@ In order to get accurate measurments we followed the following measurement proto
 (2) warm-up the SUT to steady-state (JIT warm-up, caches, connection pools);
 (3) measure baseline idle power for a comparable interval and subtract it from active runs to estimate marginal energy per request;
 (4) execute endpoints under controlled load, varying one factor at a time where the endpoint is expected to scale (e.g., payload size, token count for LLM systems);
-(5) repeat each condition 10 times in order to report mean, standard deviation, and confidence intervals.
+(5) repeat each condition often enough to lift the machine-level signal above background noise; the concrete repeat count depends on endpoint cost and is described below.
 
 \subsection{Benchmark application and endpoint workloads}
 We implemented a minimal REST-style ToDo application in Python that serves HTTP requests using an SQLite as the backend database. The application and benchmark harness are publicly available \cite{easytodo}. While SQLite is a simple dependency, the GMT harness supports measuring more complex multi-service deployments; we use this application to cover a range of endpoint behaviours. Following endpoints are available in the application:
@@ -261,8 +261,8 @@ We implemented a minimal REST-style ToDo application in Python that serves HTTP 
 \begin{table}
     \centering
     \begin{tabular}{p{1.7cm} p{6.3cm}}
-        /login & Given a username and password returns an authentication token \\
-        /logout & Destroys the authentication token \\
+        /login & Given a username and password returns an authenticated session cookie \\
+        /logout & Invalidates the authenticated session \\
         /createToDo  & Takes a title, text and attachment and creates a new "todo" item in the database \\
         /done &  Given a todo id marks it as done in the DB \\
         /getToDos  & Returns all the todos of the user \\
@@ -279,11 +279,13 @@ We deliberately excluded HTTPS from the measurements to avoid entangling endpoin
 Each endpoint was benchmarked with its own workload script designed to expose the endpoint’s expected scaling factors:
 \begin{itemize}
   \item \textbf{Constant-cost endpoints} (e.g., authentication-style requests) were exercised under repeated identical inputs to estimate a stable mean and variance.
-  \item \textbf{Data-dependent endpoints} were executed with systematic sweeps over input sizes (e.g., ToDo text length or number of items) to obtain an energy curve over payload sizes.
+  \item \textbf{Data-dependent endpoints} were executed with systematic sweeps over input sizes (e.g., ToDo text length, attachment size, or AI token count) to obtain an energy curve over payload sizes.
   \item \textbf{Stateful endpoints requiring authentication} were benchmarked with a pre-acquired session cookie. The cookie was captured once and reused across runs to avoid repeatedly measuring login overhead when benchmarking other endpoints.
 \end{itemize}
 
-Each measurement condition (endpoint + input level) was repeated \(N=100\) times. This repetition serves two purposes: (i) reduce sensitivity to transient OS noise and caching effects; (ii) provide a distribution from which we can compute mean, standard deviation, and confidence intervals as required by the modelling approach in Section~\ref{sec:methods}.
+We do not use one uniform repetition count for all endpoints. Instead, we choose the number of calls per benchmark condition according to the expected signal strength. For very small endpoints such as \texttt{/login} and \texttt{/logout}, single-request energy values are too small relative to machine-level measurement noise, so we execute 100 calls per condition and divide the measured machine energy by the number of calls. We use the same 100-call batch size for the CRUD-style web endpoints \texttt{/createToDo} and \texttt{/getToDos}. For \texttt{/done}, each benchmark condition first creates 100 ToDo items and then marks each of them once, yielding 100 \texttt{/done} requests for that condition. For \texttt{/ai}, we use 10 requests per prompt profile because each inference call is much longer and already produces a clearly measurable energy signal.
+
+For stateful workload blocks we keep the batching strategy aligned with the application semantics. A \texttt{/createToDo} condition creates 100 items with either a fixed text length (100, 1000, 10000, or 100000 characters) or a fixed attachment size (1\,KB, 10\,KB, 100\,KB, 1\,MB, or 5\,MB). The subsequent \texttt{/getToDos} condition is then executed 100 times against that populated state. The \texttt{/done} condition marks the 100 created items exactly once each, which again yields 100 measured requests. After each block, \texttt{/deleteAllToDos} is called only for cleanup so that the next condition starts from a controlled and comparable state. In the AI case, the benchmark uses five prompt profiles and issues 10 requests per profile, because inference latency and energy are high enough that additional repetition is less critical for signal extraction than for the lightweight REST endpoints.
 
 \subsection{AI endpoint configuration and token variable}
 For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve local inference on the same machine. We benchmarked the \texttt{gemma3:1b} model. To stabilise inference behaviour:
@@ -293,7 +295,7 @@ For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve loca
   \item the inference configuration was held constant across runs (e.g., decoding settings), so that token count is an informative proxy for work.
 \end{itemize}
 
-We treat the token count \(\tau\) as a first-class measurement variable for \texttt{/ai}. In our prototype, \(\tau\) is obtained from the application layer (which already observes generated token counts via the inference runtime) and is exposed to the HTTP server as a request/response-scoped variable. This enables fitting and evaluating token-linear models \(\widehat{E}_{ai}(\tau)\) without requiring invasive GPU telemetry in production.
+We treat token counts as first-class measurement variables for \texttt{/ai}. In our prototype, the application layer observes both prompt-token and generated-token counts via the inference runtime and exposes them as response-scoped metadata. This enables fitting and evaluating token-linear models \(\widehat{E}_{ai}(\tau)\) without requiring invasive GPU telemetry in production.
 
 Prior work suggests that generated token count is a practical proxy for LLM inference cost under fixed serving conditions. Output length has been shown to scale approximately linearly with inference latency, and prior energy studies also report strong correlations between energy use and output-token count \cite{yang2024queueing,poddar2025towards,caravaca2025promptstopower}. This makes it feasible to use generated token count as a factor in our \texttt{/ai} endpoint model.
 
@@ -307,15 +309,15 @@ where \(E_{\text{machine}}\) is the total machine energy measured energy during 
 \subsection{Mapping to runtime-observable model features}
 For each measured request, we associate the energy label \(E\) with features that are available (or can be made available at low cost) at the HTTP server boundary:
 \begin{itemize}
-  \item \textbf{Processing time \(t\):} request handling time as observed by the reverse proxy (e.g., NGINX \texttt{\$request\_time}-style timing variables).
+  \item \textbf{Processing time \(t\):} request handling time as observed by the reverse proxy (e.g., nginx \texttt{\$request\_time}-style timing variables).
   \item \textbf{Request and Response bytes \(b^{req}\):} the size of the incoming and outgoing request, including body and, where appropriate, request metadata visible to the server.
   \item \textbf{HTTP method \(m\):} the request method (e.g., \texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{DELETE}), which helps distinguish different execution paths and backend behaviours.
   \item \textbf{Response status \(r\):} the HTTP response code (or status class), which captures whether a request completed successfully, was redirected, rejected, cached, or failed, and may therefore correlate with different energy costs.
   \item \textbf{URL-parameter-derived features \(q\):} selected information derived from the request URI, such as the presence of specific query parameters, total query-string length, parameter count, or whitelisted numeric values (e.g., pagination limit). We use derived features rather than raw query strings in order to avoid unnecessary sparsity and high-cardinality model inputs.
-  \item \textbf{Token count \(\tau\):} for AI inference, the application reports generated token counts, which the proxy can read and use to evaluate token-linear models.
+  \item \textbf{Token count \(\tau\):} for AI inference, the application reports prompt-token and generated-token counts, which the proxy can read and use to evaluate token-linear models.
 \end{itemize}
 
-The resulting dataset is a collection of tuples \((e, x, E)\) per endpoint \(e\), where \(x\) includes the relevant features such as \((t, b^{req}, b^{res}, m, r, q)\) or, for AI endpoints, \((\tau)\). We then fit the constant, linear, and piecewise curve models described in Section~\ref{sec:methods}, and export the fitted parameters into the JSON registry consumed by the NGINX module (Listing~\ref{lst:json-registry}).
+The resulting dataset is a collection of tuples \((e, x, E)\) per endpoint \(e\), where \(x\) includes the relevant features such as \((t, b^{req}, b^{res}, m, r, q)\) or, for AI endpoints, \((\tau)\). We then fit the constant, linear, and piecewise curve models described in Section~\ref{sec:methods}, and export the fitted parameters into the JSON registry consumed by the nginx module (Listing~\ref{lst:json-registry}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 --------------------------- BIS HIER HIN HABE ICH ------------------------
@@ -328,16 +330,18 @@ The resulting dataset is a collection of tuples \((e, x, E)\) per endpoint \(e\)
 \subsection{Design overview}
 %-----------------------------------------------------------------------------------------
 
-We implement impact disclosure at the HTTP server layer using an NGINX module. The module:
+We implement impact disclosure at the HTTP server layer using an nginx module. The module:
 (1) loads a JSON registry that maps URI paths (or location blocks) to endpoint energy models;
-(2) extracts runtime observables from NGINX variables (request processing time, payload sizes; and optionally token count supplied by the application);
+(2) extracts runtime observables from nginx variables (request processing time, payload sizes; and optionally token count supplied by the application);
 (3) evaluates the corresponding model to estimate energy per request and derives operational and embodied \(\mathrm{CO_2e}\);
 (4) injects response headers and optionally writes structured logs for downstream accounting.
+
+We used $ngx_http_js_module$ which uses a Java Script dialect called $njs$ to extend nginx.
 
 This design is deliberately ``drop-in'' for providers: it requires no kernel patches and no cloud vendor energy APIs.
 
 \subsection{JSON model registry schema}
-Listing~\ref{lst:json-registry} shows the registry format used by the NGINX module. Energy values are expressed in \(\mathrm{mWh}\) to avoid underflow and to align with the prototype results in the outline. Grid intensity is expressed as \(\mathrm{gCO_2e/kWh}\); embodied rate is expressed as \(\mathrm{gCO_2e/s}\).
+Listing~\ref{lst:json-registry} shows the registry format used by the nginx module. Energy values are expressed in \(\mathrm{mWh}\) to avoid underflow and to align with the prototype results in the outline. Grid intensity is expressed as \(\mathrm{gCO_2e/kWh}\); embodied rate is expressed as \(\mathrm{gCO_2e/s}\).
 
 \begin{lstlisting}[float,caption={JSON model registry schema (example).},label={lst:json-registry}]
 {
@@ -376,8 +380,8 @@ Listing~\ref{lst:json-registry} shows the registry format used by the NGINX modu
     "energy_model": {
       "kind": "linear",
       "intercept_mWh": 0.0,
-      "time_coeff_mWh_per_s": 0.0001,
-      "size_coeff_mWh_per_byte": 0.00001
+      "prompt_token_coeff_mWh_per_token": 0.0,
+      "generated_token_coeff_mWh_per_token": 0.0
     },
     "embodied_rate_gCO2e_per_s": 0.000010,
     "grid_intensity_gCO2e_per_kWh": 250.5
@@ -402,7 +406,7 @@ We therefore use multiple response headers in this example. This is not primaril
 In Listing~\ref{lst:curl} one can see the exact headers that are returned for an example curl request.
 
 (TODO: Update this with new values from benchmark)
-\begin{lstlisting}[float,language=bash,caption={Example response headers from the prototype NGINX module (from the outline).},label={lst:curl}]
+\begin{lstlisting}[float,language=bash,caption={Example response headers from the prototype nginx module (from the outline).},label={lst:curl}]
 curl -sS -D - -o /dev/null \
   -X POST "http://localhost:8080/login" \
   -H "Content-Type: application/json" \
@@ -429,47 +433,9 @@ Grid intensity can be (i) a deployment-time constant (e.g., location average), (
 
 \section{Evaluation}
 \subsection{Benchmark application and endpoints}
-We evaluate the approach using a simple ToDo application with REST endpoints (\texttt{/login}, \texttt{/logout}, \texttt{/createToDo}, \texttt{/done}, \texttt{/getToDos}, \texttt{/deleteAllToDos}) and an AI endpoint \texttt{/ai} that continues text using a local model. The application code is available at \url{https://github.com/ribalba/easytodo} \cite{easytodo}. The focus is not the application per se but the diversity of endpoint shapes: constant endpoints (authentication), endpoints with database-write thresholds, endpoints with linear hashing cost, and token-scaled inference.
+We evaluate the approach using a simple ToDo application with REST endpoints (\texttt{/login}, \texttt{/logout}, \texttt{/createToDo}, \texttt{/done}, \texttt{/getToDos}) and an LLM endpoint \texttt{/ai}. The application code is available at \url{https://github.com/ribalba/easytodo} \cite{easytodo}. The focus is not the application per se but the diversity of endpoint shapes: constant endpoints (authentication), payload-scaled CRUD endpoints (text length and attachment size), state-dependent update endpoints, and token-scaled inference. The auxiliary cleanup endpoint \texttt{/deleteAllToDos} is used only to restore a controlled initial state between conditions and is not part of the reported evaluation set.
 
-\subsection{Measurement plan and metrics}
-\textbf{Accuracy of energy models.} For each endpoint we measure energy per request under controlled sweeps. We report:
-(i) model type and parameters;
-(ii) mean and standard deviation of measured energy;
-(iii) prediction error (e.g., MAPE/RMSE; placeholder to be finalised);
-(iv) stability across iterations (e.g., drift across time).
 
-\textbf{Overhead of disclosure.} We compare baseline NGINX versus NGINX+module under identical load and report:
-(i) throughput (req/s);
-(ii) latency distribution (p50/p95/p99);
-(iii) CPU utilisation and memory overhead;
-(iv) energy overhead of the disclosure mechanism.
-The outline anticipates overhead close to 1\% (placeholder) based on lightweight arithmetic and header injection; the final paper will provide empirical values.
-
-\subsection{Placeholder results table}
-Table~\ref{tab:results} is a placeholder template to be filled with measured values. It is intentionally structured to support reproducibility and to make assumptions explicit (embodied rate and grid intensity are first-class columns).
-
-\begin{table*}[t]
-\centering
-\caption{Placeholder measurement results and model registry parameters (to be filled with final experimental data).}
-\label{tab:results}
-\begin{tabular}{llllrrrr}
-\toprule
-Endpoint & Model type & Parameters (summary) & Embodied \(\mathrm{gCO_2e/s}\) & Grid \(\mathrm{gCO_2e/kWh}\) & Mean \(\mathrm{mWh}\) & Stddev & Overhead \(\%\) \\
-\midrule
-\texttt{/login} & constant & \(c=\) 3.7564 & 0.000100 & 250.5 & \textbf{TBD} & TBD & TBD \\
-\texttt{/logout} & constant & \(c=\) 0.0517 & 0.000010 & 250.5 & TBD & TBD & TBD \\
-\texttt{/createToDo} & linear & \(\beta_0,\beta_t,\beta_s\) & 0.000010 & 250.5 & TBD & TBD & TBD \\
-\texttt{/done} & constant & \(c=\) TBD & TBD & TBD & TBD & TBD & TBD \\
-\texttt{/getToDos} & curve & points=\(\{(s_i,E_i)\}\) & 0.000010 & 250.5 & TBD & TBD & TBD \\
-\texttt{/deleteAllToDos} & constant & \(c=\) TBD & TBD & TBD & TBD & TBD & TBD \\
-\texttt{/ai} & token-linear & \(\alpha_0,\alpha_\tau\) & TBD & TBD & TBD & TBD & TBD \\
-\bottomrule
-\end{tabular}
-
-\vspace{0.6em}
-\footnotesize
-\textbf{Notes.} ``Overhead'' refers to incremental overhead introduced by the NGINX disclosure module relative to a baseline configuration under the same load (definitions to be finalised). ``Parameters'' summarises model coefficients; the final paper should include full fitted values and confidence intervals.
-\end{table*}
 
 
 \section{Discussion}
