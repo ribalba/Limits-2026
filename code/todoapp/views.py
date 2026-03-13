@@ -12,11 +12,14 @@ from .models import ToDo
 
 
 def _json_body(request) -> dict[str, Any]:
+    content_type = (request.content_type or "").split(";", 1)[0].strip().lower()
+    if content_type == "multipart/form-data":
+        return {}
     if not request.body:
         return {}
     try:
         return json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
 
 

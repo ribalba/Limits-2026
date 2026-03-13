@@ -13,4 +13,4 @@ RUN mkdir -p /app/media /app/static
 
 EXPOSE 8000
 
-CMD ["gunicorn", "todo_project.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "todo_project.wsgi:application", "--bind", "0.0.0.0:8000", "--timeout", "300", "--graceful-timeout", "300"]
