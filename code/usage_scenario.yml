@@ -3,12 +3,12 @@ author: Didi Hoffmann <didi@green-coding.io>
 version: 0.1
 description: This is a benchmark for the EasyTodo application. It simulates a user logging in, creating to-dos, getting to-dos, and logging out.
 
-compose-file: !include docker-compose-no-header.yml
+compose-file: !include docker-compose.yml
 
-services:
-  gcb-ai-model:
-    docker-run-args:
-      - --gpus=all
+# services:
+#   gcb-ai-model:
+#     docker-run-args:
+#       - --gpus=all
 
 flow:
   - name: Wait for ollama server

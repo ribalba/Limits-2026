@@ -28,7 +28,7 @@ The app is available at `http://localhost:8080`.
   - Body: `id` or `todo_id`, optional `done` (true/false)
 - `GET /getToDos`
 - `POST /ai`
-  - Body: `prompt`, optional `model`
+  - Body: `prompt`, optional `model`, optional `num_predict`, optional `seed`, optional `temperature`
   - Response JSON: `{"ok": true, "content": "...", "prompt_tokens": 12, "generated_tokens": 34}`
   - Response header: `X-Prompt-Tokens`
   - Response header: `X-Generated-Tokens`
@@ -72,11 +72,12 @@ Shell scripts in `scripts/` call each endpoint `n` times (1..100000). Examples:
 ./scripts/ai_bench.sh -n 20 -s mixed
 ./scripts/ai_bench.sh -n 20 -s medium
 ./scripts/ai_bench.sh -n 20 -s very-long -b http://nginx
+./scripts/ai_bench.sh -n 20 -s mixed -g 128 -r 7 -T 0
 ./scripts/done_bench.sh -u testuser -p testuser -n 1
 ./scripts/logout_bench.sh -n 1000
 ```
 
-`ai_bench.sh` supports `very-short`, `short`, `medium`, `long`, `very-long`, and `mixed`. It prints one line per request with the prompt profile and the prompt/generated token counts returned by `/ai`. The default `mixed` profile cycles through all five prompt lengths so the token counts differ within a single run.
+`ai_bench.sh` supports `very-short`, `short`, `medium`, `long`, `very-long`, and `mixed`. It prints one line per request with the prompt profile and the prompt/generated token counts returned by `/ai`. By default it also fixes `num_predict=128`, `seed=7`, and `temperature=0` so prompt-length experiments are less affected by response-length drift. The default `mixed` profile cycles through all five prompt lengths so the token counts differ within a single run.
 
 ## Green Metrics Tool
 

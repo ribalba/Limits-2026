@@ -45,6 +45,30 @@ def _parse_bool(value: Any, default: bool = True) -> bool:
     return default
 
 
+def _parse_int(value: Any, default: int | None = None, minimum: int | None = None) -> int | None:
+    if value in (None, ""):
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    return parsed
+
+
+def _parse_float(value: Any, default: float | None = None, minimum: float | None = None) -> float | None:
+    if value in (None, ""):
+        return default
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    return parsed
+
+
 def _ollama_settings() -> tuple[str, str, float]:
     base_url = os.getenv("OLLAMA_BASE_URL", "http://gcb-ai-model:11434").rstrip("/")
     model = os.getenv("OLLAMA_MODEL", "gemma3:1b")
@@ -52,13 +76,28 @@ def _ollama_settings() -> tuple[str, str, float]:
     return base_url, model, timeout
 
 
-def _generate_with_ollama(prompt: str, model: str | None = None) -> tuple[str | None, int, int, str | None]:
+def _generate_with_ollama(
+    prompt: str,
+    model: str | None = None,
+    num_predict: int | None = None,
+    seed: int | None = None,
+    temperature: float | None = None,
+) -> tuple[str | None, int, int, str | None]:
     base_url, default_model, timeout = _ollama_settings()
     payload = {
         "model": model or default_model,
         "prompt": prompt,
         "stream": False,
     }
+    options = {}
+    if num_predict is not None:
+        options["num_predict"] = num_predict
+    if seed is not None:
+        options["seed"] = seed
+    if temperature is not None:
+        options["temperature"] = temperature
+    if options:
+        payload["options"] = options
 
     req = urllib_request.Request(
         f"{base_url}/api/generate",
@@ -226,11 +265,24 @@ def ai_autocomplete(request):
     data = _json_body(request)
     prompt = _get_param(request, data, "prompt", "Prompt")
     model = _get_param(request, data, "model", "Model")
+    num_predict = _parse_int(_get_param(request, data, "num_predict", "NumPredict"), default=None, minimum=1)
+    seed = _parse_int(_get_param(request, data, "seed", "Seed"), default=None)
+    temperature = _parse_float(
+        _get_param(request, data, "temperature", "Temperature"),
+        default=None,
+        minimum=0.0,
+    )
 
     if not prompt:
         return JsonResponse({"ok": False, "error": "prompt required"}, status=400)
 
-    content, prompt_tokens, generated_tokens, error_message = _generate_with_ollama(prompt, model=model)
+    content, prompt_tokens, generated_tokens, error_message = _generate_with_ollama(
+        prompt,
+        model=model,
+        num_predict=num_predict,
+        seed=seed,
+        temperature=temperature,
+    )
     if error_message:
         return JsonResponse({"ok": False, "error": error_message}, status=502)
 
@@ -240,6 +292,9 @@ def ai_autocomplete(request):
             "content": content,
             "prompt_tokens": prompt_tokens,
             "generated_tokens": generated_tokens,
+            "num_predict": num_predict,
+            "seed": seed,
+            "temperature": temperature,
         }
     )
     response["X-Prompt-Tokens"] = str(prompt_tokens)

@@ -1,0 +1,66 @@
+{
+  "/ai": {
+    "energy_model": {
+      "kind": "linear",
+      "intercept_mWh": 7.062,
+      "prompt_token_coeff_mWh_per_token": 0.017,
+      "generated_token_coeff_mWh_per_token": 0.483
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  },
+  "/createToDo": {
+    "energy_model": {
+      "kind": "curve",
+      "input": "data_size",
+      "points": [[100.0, 0.064], [1000.0, 0.079], [1124.0, 0.058], [10000.0, 0.035], [10340.0, 0.061], [100000.0, 0.096], [102500.0, 0.08], [1048676.0, 0.288], [5242980.0, 0.989]],
+      "interpolate": "linear",
+      "extrapolate": "linear_tail"
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  },
+  "/deleteAllToDos": {
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 2.835
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  },
+  "/done": {
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 0.085
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  },
+  "/getToDos": {
+    "energy_model": {
+      "kind": "curve",
+      "input": "data_size",
+      "points": [[49421.59, 0.072], [231310.93, 0.112], [2051378.03, 0.125], [20298823.13, 0.553]],
+      "interpolate": "linear",
+      "extrapolate": "linear_tail"
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  },
+  "/login": {
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 4.038
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  },
+  "/logout": {
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 0.006
+    },
+    "embodied_rate_gCO2e_per_s": 0.001,
+    "grid_intensity_gCO2e_per_kWh": 121.111
+  }
+}

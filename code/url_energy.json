@@ -1,53 +1,120 @@
 {
-  "/login": {
-    "energy_model": { "kind": "constant", "value": 3.7564 },
-    "embodied": 0.0001,
-    "grid_intensity": 250.5
-  },
-  "/logout": {
-    "energy_model": { "kind": "constant", "value": 0.0517 },
-    "embodied": 0.00001,
-    "grid_intensity": 250.5
+  "/ai": {
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
+    "energy_model": {
+      "generated_token_coeff_mWh_per_token": 0.4827617158793121,
+      "intercept_mWh": 7.062260321489418,
+      "kind": "linear",
+      "prompt_token_coeff_mWh_per_token": 0.017395651503889286
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
   },
   "/createToDo": {
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
     "energy_model": {
-      "kind": "linear",
-      "intercept": 0.0,
-      "time_coeff": 0.0001,
-      "size_coeff": 0.00001
-    },
-    "embodied": 0.00001,
-    "grid_intensity": 250.5
-  },
-  "/done": {
-    "energy_model": { "kind": "constant", "value": 0.0517 },
-    "embodied": 0.00001,
-    "grid_intensity": 250.5
-  },
-  "/getToDos": {
-    "energy_model": {
-      "kind": "curve",
+      "extrapolate": "linear_tail",
       "input": "data_size",
-      "points": [[0, 0.01], [100, 0.02], [1000, 0.09], [5000, 0.40]],
       "interpolate": "linear",
-      "extrapolate": "linear_tail"
+      "kind": "curve",
+      "points": [
+        [
+          100.0,
+          0.06425679984378041
+        ],
+        [
+          1000.0,
+          0.07934416267422106
+        ],
+        [
+          1124.0,
+          0.05800873480894851
+        ],
+        [
+          10000.0,
+          0.03487555324539559
+        ],
+        [
+          10340.0,
+          0.06057302822591733
+        ],
+        [
+          100000.0,
+          0.09559038585061795
+        ],
+        [
+          102500.0,
+          0.08029278957645226
+        ],
+        [
+          1048676.0,
+          0.28761717698121847
+        ],
+        [
+          5242980.0,
+          0.9891560178365522
+        ]
+      ]
     },
-    "embodied": 0.00001,
-    "grid_intensity": 250.5
-  },
-  "/ai": {
-    "energy_model": {
-      "kind": "linear",
-      "intercept": 0.0,
-      "prompt_token_coeff": 0.0,
-      "generated_token_coeff": 0.0
-    },
-    "embodied": 0.00001,
-    "grid_intensity": 250.5
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
   },
   "/deleteAllToDos": {
-    "energy_model": { "kind": "constant", "value": 0.0517 },
-    "embodied": 0.00001,
-    "grid_intensity": 250.5
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 2.8354605740552574
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
+  },
+  "/done": {
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 0.08515719974527737
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
+  },
+  "/getToDos": {
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
+    "energy_model": {
+      "extrapolate": "linear_tail",
+      "input": "data_size",
+      "interpolate": "linear",
+      "kind": "curve",
+      "points": [
+        [
+          49421.59,
+          0.07211200990194123
+        ],
+        [
+          231310.93,
+          0.11206350505112236
+        ],
+        [
+          2051378.03,
+          0.12527865631447604
+        ],
+        [
+          20298823.13,
+          0.5526180839012693
+        ]
+      ]
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
+  },
+  "/login": {
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 4.038475973780411
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
+  },
+  "/logout": {
+    "embodied_rate_gCO2e_per_s": 0.0014348758305361977,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 0.005751603931726971
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11100987214685
   }
 }

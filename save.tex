@@ -33,3 +33,60 @@ HTTP explicitly supports extensibility through header fields \cite{rfc9110}. The
 \paragraph{API user (consumer) perspective.} Many organisations now operate internal or regulatory carbon accounting processes. Yet API consumption is typically billed in currency, not in \(\mathrm{CO_2e}\) (or even energy). When an application calls \texttt{/login} or \texttt{/ai}, the client can measure cost, latency but not impact. If impact were disclosed directly in an API response, consumers could (i) budget or cap footprint, (ii) optimise client behaviour (batching, caching, prompt reduction), and (iii) compare providers for functionally equivalent services. This aligns with the logic of per-functional-unit accounting emphasised in software carbon intensity frameworks \cite{gsf-sci}.
 
 \paragraph{Service provider perspective.} Providers face the complementary problem: request-level attribution is hard in multi-tenant clouds. Virtual machines, containers, and serverless platforms abstract away low-level power telemetry; energy data may exist only at coarse rack or cluster granularity, if at all. Independently, providers are incentivised to optimise efficiency and to demonstrate progress, but they lack a \emph{drop-in} mechanism to communicate request-level impact to users. A server-side disclosure mechanism that can run at the HTTP layer can also be used internally (e.g., via access logs) to find hotspots and regressions without deploying power meters to production.
+
+
+----
+
+
+\subsection{Measurement setup}
+Measurements were conducted on a machine equipped with an Intel Core i5-9600K CPU and an NVIDIA GeForce GTX 1080 GPU. Energy was recorded at three levels simultaneously: the full system power supply (MCP39F511N), CPU and DRAM (Intel RAPL via MSR registers), and GPU (NVIDIA NVML). The LLM used was gemma3:1b, served locally via ollama with GPU passthrough. All runs were orchestrated with the Green Metrics Tool \cite{gmt}, which segments execution into named phases that map directly to benchmark steps; per-request energy is derived by dividing the total phase energy by the request count executed in that phase.
+
+\subsection{Per-request energy results}
+
+\begin{table}[h]
+\centering
+\caption{Per-request system energy (PSU) measured at the power supply unit.}
+\label{tab:energy}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Endpoint / condition} & \textbf{Requests} & \textbf{Energy (mWh/req)} \\
+\midrule
+\texttt{/logout}                  & 100 & 0.129 \\
+\texttt{/getToDos} (100 items)    & 100 & 0.196 \\
+\texttt{/getToDos} (1\,000 items) & 100 & 0.250 \\
+\texttt{/getToDos} (10\,000 items)& 100 & 0.310 \\
+\texttt{/getToDos} (100\,000 items)&100 & 1.300 \\
+\texttt{/createToDo} (text, 100 chars)   & 100 & 0.412 \\
+\texttt{/createToDo} (text, 1\,000 chars)& 100 & 0.471 \\
+\texttt{/createToDo} (text, 10\,000 chars)&100 & 0.381 \\
+\texttt{/createToDo} (text, 100\,000 chars)&100 & 0.470 \\
+\texttt{/done}                    & 100 & 0.393 \\
+\texttt{/createToDo} (file, 1\,KB)  & 100 & 0.374 \\
+\texttt{/createToDo} (file, 10\,KB) & 100 & 0.360 \\
+\texttt{/createToDo} (file, 100\,KB)& 100 & 0.364 \\
+\texttt{/createToDo} (file, 1\,MB)  & 100 & 0.732 \\
+\texttt{/createToDo} (file, 5\,MB)  & 100 & 2.341 \\
+\texttt{/login}                   & 100 & 6.750 \\
+\midrule
+\texttt{/ai} (very short prompt)  &  10 & 39.15  \\
+\texttt{/ai} (short prompt)       &  10 & 313.97 \\
+\texttt{/ai} (medium prompt)      &  10 & 373.86 \\
+\texttt{/ai} (long prompt)        &  10 & 286.73 \\
+\texttt{/ai} (very long prompt)   &  10 & 342.09 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The results in Table~\ref{tab:energy} illustrate several distinct energy regimes.
+
+\textbf{Constant-energy CRUD endpoints.} Simple write and update endpoints (\texttt{/done}, \texttt{/createToDo} with short text, \texttt{/logout}) cluster in the range 0.13--0.47\,mWh per request. These endpoints show little variation across conditions and are best modelled as constants. The system idle power measured at the PSU during the dedicated idle phase was $\approx$41\,W, confirming that most of this budget is attributable to baseline system draw rather than request processing.
+
+\textbf{Payload-sensitive write endpoint.} For \texttt{/createToDo} with text payloads of 100 to 100\,000 characters, the per-request energy varies only modestly (0.38--0.47\,mWh), suggesting that for text-dominated payloads, network and serialisation costs are negligible at local scales. In contrast, file attachments show a clear non-linear increase: 1\,KB--100\,KB attachments remain flat near 0.37\,mWh, while 1\,MB jumps to 0.73\,mWh and 5\,MB reaches 2.34\,mWh. A piecewise model is appropriate for this endpoint: constant below roughly 100\,KB, linear above.
+
+\textbf{State-dependent read endpoint.} \texttt{/getToDos} scales with the number of stored items returned: from 0.196\,mWh (100 items) to 1.300\,mWh (100\,000 items). The relationship is approximately linear up to 10\,000 items, with a steeper jump at 100\,000 items, consistent with a linear or curve model parameterised by result-set size.
+
+\textbf{Authentication cost.} \texttt{/login} consumes 6.75\,mWh per request, an order of magnitude above comparable CRUD endpoints. This is attributable to the bcrypt password hashing used by the application, which is intentionally CPU-intensive. This illustrates a class of endpoints that are computationally heavy by design and should be modelled as constants with explicit documentation of their security-driven cost.
+
+\textbf{LLM inference dominates.} AI inference requests are two to three orders of magnitude more expensive than any CRUD operation. Even a very-short prompt consumes 39\,mWh, while typical prompt lengths reach 287--374\,mWh per request. GPU power draw during the AI phases averaged 88.8\,W compared to an idle GPU draw of 17.6\,W, confirming that the GPU accounts for the bulk of the additional cost. Energy does not scale monotonically with prompt length (the long prompt is cheaper than the medium one), reflecting the non-deterministic token generation behaviour of the model. An approximate constant model captures the order of magnitude; a curve model parameterised by input or output token count would be required for finer-grained disclosure.
+
+These results validate the three-tier model hierarchy introduced in Section~\ref{sec:method}: constant, linear, and curve models cover the full range of endpoint behaviours observed, and the energy disclosure values span five orders of magnitude across endpoint types---from sub-mWh CRUD calls to hundreds of mWh for LLM inference---underscoring that aggregating endpoints into a single server-level number would be misleading.

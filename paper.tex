@@ -41,6 +41,34 @@
 \usepackage{ifthen}
 \usepackage{graphicx}
 
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\footnotesize,
+  showstringspaces=false,
+  breaklines=true,
+  morestring=[b]",
+  stringstyle=\color{green!40!black},
+  commentstyle=\color{gray},
+  morecomment=[l]{//},
+  literate=
+   *{0}{{{\color{blue}0}}}{1}
+    {1}{{{\color{blue}1}}}{1}
+    {2}{{{\color{blue}2}}}{1}
+    {3}{{{\color{blue}3}}}{1}
+    {4}{{{\color{blue}4}}}{1}
+    {5}{{{\color{blue}5}}}{1}
+    {6}{{{\color{blue}6}}}{1}
+    {7}{{{\color{blue}7}}}{1}
+    {8}{{{\color{blue}8}}}{1}
+    {9}{{{\color{blue}9}}}{1}
+    {:}{{{\color{black}{:}}}}{1}
+    {,}{{{\color{black}{,}}}}{1}
+    {\{}{{{\color{black}{\{}}}}{1}
+    {\}}{{{\color{black}{\}}}}}{1}
+    {[}{{{\color{black}{[}}}}{1}
+    {]}{{{\color{black}{]}}}}{1},
+}
+
+
 % --- Listings setup (avoid minted for portability) ---
 \lstset{
   basicstyle=\ttfamily\footnotesize,
@@ -128,6 +156,7 @@ Previous work on software sustainability measurement makes clear that the field 
 
 %-----------------------------------------------------------------------------------------
 \section{Method}
+\label{sec:methods}
 %-----------------------------------------------------------------------------------------
 
 The central implementation challenge of per-request sustainability disclosure is the derivation of credible values. In principle, one might want to attach energy use or \(\mathrm{CO_2e}\) directly to every HTTP request as it is processed. In practice, however, these quantities are not directly observable at the request level. Power is usually measured only at the machine or system boundary, while HTTP requests are handled concurrently, interact with shared resources, and often trigger background work that is not trivially attributable to a single transaction.
@@ -274,6 +303,8 @@ We implemented a minimal REST-style ToDo application in Python that serves HTTP 
 
 We deliberately excluded HTTPS from the measurements to avoid entangling endpoint energy with TLS handshake and encryption overhead. In deployments where HTTPS is mandatory (typical on the public internet), TLS overhead can be accounted for as (i) a separate endpoint-independent constant term, or (ii) a distinct model variant keyed by protocol configuration.
 
+We created an autmated benchmark script that calls each endpoint a number of times with varying data sizes as can be seen in table X TODO.
+
 
 \subsection{Experimental design and repetitions}
 Each endpoint was benchmarked with its own workload script designed to expose the endpoint’s expected scaling factors:
@@ -319,12 +350,9 @@ For each measured request, we associate the energy label \(E\) with features tha
 
 The resulting dataset is a collection of tuples \((e, x, E)\) per endpoint \(e\), where \(x\) includes the relevant features such as \((t, b^{req}, b^{res}, m, r, q)\) or, for AI endpoints, \((\tau)\). We then fit the constant, linear, and piecewise curve models described in Section~\ref{sec:methods}, and export the fitted parameters into the JSON registry consumed by the nginx module (Listing~\ref{lst:json-registry}).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
---------------------------- BIS HIER HIN HABE ICH ------------------------
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 \section{Implementation}
+\label{sec:implementation}
 
 %-----------------------------------------------------------------------------------------
 \subsection{Design overview}
@@ -340,54 +368,18 @@ We used $ngx_http_js_module$ which uses a Java Script dialect called $njs$ to ex
 
 This design is deliberately ``drop-in'' for providers: it requires no kernel patches and no cloud vendor energy APIs.
 
+We also implemented a helper script that automaically generates the json input for the nginx module. Like this the data can be updated automatically.
+
 \subsection{JSON model registry schema}
 Listing~\ref{lst:json-registry} shows the registry format used by the nginx module. Energy values are expressed in \(\mathrm{mWh}\) to avoid underflow and to align with the prototype results in the outline. Grid intensity is expressed as \(\mathrm{gCO_2e/kWh}\); embodied rate is expressed as \(\mathrm{gCO_2e/s}\).
 
-\begin{lstlisting}[float,caption={JSON model registry schema (example).},label={lst:json-registry}]
-{
-  "/login": {
-    "energy_model": { "kind": "constant", "value_mWh": 3.7564 },
-    "embodied_rate_gCO2e_per_s": 0.000100,
-    "grid_intensity_gCO2e_per_kWh": 250.5
-  },
-  "/logout": {
-    "energy_model": { "kind": "constant", "value_mWh": 0.0517 },
-    "embodied_rate_gCO2e_per_s": 0.000010,
-    "grid_intensity_gCO2e_per_kWh": 250.5
-  },
-  "/createToDo": {
-    "energy_model": {
-      "kind": "linear",
-      "intercept_mWh": 0.0,
-      "time_coeff_mWh_per_s": 0.0001,
-      "size_coeff_mWh_per_byte": 0.00001
-    },
-    "embodied_rate_gCO2e_per_s": 0.000010,
-    "grid_intensity_gCO2e_per_kWh": 250.5
-  },
-  "/getToDos": {
-    "energy_model": {
-      "kind": "curve",
-      "input": "data_size_bytes",
-      "points": [[0, 0.01], [100, 0.02], [1000, 0.09], [5000, 0.40]],
-      "interpolate": "linear",
-      "extrapolate": "linear_tail"
-    },
-    "embodied_rate_gCO2e_per_s": 0.000010,
-    "grid_intensity_gCO2e_per_kWh": 250.5
-  },
-  "/ai": {
-    "energy_model": {
-      "kind": "linear",
-      "intercept_mWh": 0.0,
-      "prompt_token_coeff_mWh_per_token": 0.0,
-      "generated_token_coeff_mWh_per_token": 0.0
-    },
-    "embodied_rate_gCO2e_per_s": 0.000010,
-    "grid_intensity_gCO2e_per_kWh": 250.5
-  }
-}
-\end{lstlisting}
+\lstinputlisting[
+  language=json,
+  float,
+  caption={JSON model registry schema.},
+  label={lst:json-registry}
+]{url_energy_pretty.json}
+
 
 \subsection{Header fields: names, semantics, and standardisation direction}
 
@@ -432,9 +424,74 @@ Grid intensity can be (i) a deployment-time constant (e.g., location average), (
 
 
 \section{Evaluation}
-\subsection{Benchmark application and endpoints}
-We evaluate the approach using a simple ToDo application with REST endpoints (\texttt{/login}, \texttt{/logout}, \texttt{/createToDo}, \texttt{/done}, \texttt{/getToDos}) and an LLM endpoint \texttt{/ai}. The application code is available at \url{https://github.com/ribalba/easytodo} \cite{easytodo}. The focus is not the application per se but the diversity of endpoint shapes: constant endpoints (authentication), payload-scaled CRUD endpoints (text length and attachment size), state-dependent update endpoints, and token-scaled inference. The auxiliary cleanup endpoint \texttt{/deleteAllToDos} is used only to restore a controlled initial state between conditions and is not part of the reported evaluation set.
+\label{sec:evaluation}
+\subsection{Evaluation goals}
+The goal of the evaluation is not to optimise one particular ToDo service, but to test the central claim of the paper: that machine-level benchmark measurements can be transformed into compact per-endpoint models that are executable at the HTTP boundary. We therefore evaluate the approach along three questions. First, can the controlled GMT measurements be converted into a complete registry covering heterogeneous endpoint types? Second, do the fitted models preserve the expected scaling behaviour of CRUD-style and AI-style requests? Third, does the resulting disclosure mechanism remain lightweight enough to be plausible for reverse-proxy deployment?
 
+\subsection{From benchmark traces to executable route models}
+Using the benchmark setup from Section~\ref{sec:methods} and the automatic registry generator described in Section~4, we converted the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This step is already a substantive feasibility result: the benchmark data was sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the generated registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} are represented by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} is represented by a token-linear model.
+
+The conversion step also yielded deployment-level carbon parameters shared across routes. For the measured system, the derived grid-intensity value was \(\num{121.111}\,\mathrm{gCO_2e/kWh}\), and the embodied allocation rate was approximately \(\num{0.001}\,\mathrm{gCO_2e/s}\). These values are not universal constants; they are artefacts of the measured deployment and are exactly the kind of assumptions that must be made explicit if HTTP-level disclosure is to be interpretable. This is important in the broader context of the paper: the prototype does not merely emit a final carbon number, but also exposes the conversion factors that produced it.
+
+\subsection{CRUD endpoints: compact models capture distinct scaling regimes}
+The generated registry shows that the REST endpoints fall into clearly different behavioural classes. Authentication-related requests are close to constant cost. The fitted \texttt{/logout} model is only \SI{0.006}{mWh} per request, while \texttt{/login} is substantially larger at \SI{4.038}{mWh} because it includes credential verification and cyptographic session establishment. The \texttt{/done} endpoint is also close to constant scale, with a fitted value of \SI{0.085}{mWh} per request across the measured data conditions. This matches the intuition that these routes perform limited work whose cost is weakly dependent on request payload.
+
+The payload-dependent endpoints exhibit the opposite pattern. For \texttt{/createToDo}, the fitted curve is almost flat for small text-only requests, but grows sharply once file uploads become large. Across the measured conditions, a \texttt{/createToDo} request with a short text body required about \SI{0.064}{mWh}, whereas the \SI{5}{MB} attachment condition reached \SI{0.989}{mWh} per request, more than a fifteen-fold increase. The intermediate file sizes (\SI{1}{KB}, \SI{10}{KB}, \SI{100}{KB}, \SI{1}{MB}) produce a visible progression, confirming that the curve model captures a meaningful size effect rather than pure noise.
+
+For \texttt{/getToDos}, the fitted model scales with the size of the returned collection. The smallest measured response proxy was approximately \SI{49.4}{kB} and corresponded to \SI{0.072}{mWh} per request, while the largest condition reached about \SI{20.3}{MB} and \SI{0.553}{mWh}. This is a useful result for the paper's general argument: the runtime server does not need direct knowledge of database internals to disclose a differentiated impact estimate. Response-size observables available at the HTTP boundary are already sufficient to approximate the workload class.
+
+These results also highlight an important methodological point. The curve models are not intended to be perfect physical simulations of the endpoint implementations. Rather, they are compact interface-level abstractions that preserve the major decision-relevant differences between small and large requests. This is precisely the level of fidelity needed for protocol-level disclosure.
+
+\subsection{AI endpoint: token metadata is more informative than prompt labels alone}
+The AI endpoint is the clearest example of why application-supplied variables matter. If one looked only at the prompt-profile labels (\texttt{very-short}, \texttt{short}, \texttt{medium}, \texttt{long}, \texttt{very-long}), the measured runtimes are not strictly monotonic. In our run, the \texttt{medium} profile took longer than the \texttt{very-long} profile. On its face this could appear inconsistent with the expectation that longer prompts should consume more energy.
+
+The auxiliary benchmark output resolves this apparent contradiction. Prompt-token counts do increase monotonically across profiles, from roughly 20 tokens for \texttt{very-short} to about 1010 for \texttt{very-long}. Generated-token counts, however, vary substantially between runs and do not increase monotonically with prompt length. In this measurement, the average generated-token counts were approximately 46.4 (\texttt{very-short}), 505.8 (\texttt{short}), 600.7 (\texttt{medium}), 446.5 (\texttt{long}), and 518.4 (\texttt{very-long}). The non-monotonic response lengths explain why prompt labels alone are a poor runtime predictor.
+
+Using these token measurements, the generated registry fits \texttt{/ai} as
+\[
+\widehat{E}_{ai}(\tau^{prompt}, \tau^{gen}) =
+7.062 + 0.017 \cdot \tau^{prompt} + 0.483 \cdot \tau^{gen}
+\]
+with energy in \(\mathrm{mWh}\). The fitted coefficient for generated tokens is roughly 28 times larger than the coefficient for prompt tokens. This is consistent with the serving behaviour of decoder-style inference: prompt processing matters, but the dominant marginal work occurs during token generation. In terms of the broader paper argument, this is an important result. It shows that endpoint disclosure is most useful when the reverse proxy can consume semantically meaningful application metadata instead of relying only on generic HTTP features such as payload bytes or coarse prompt categories.
+
+\subsection{Implications for deployment overhead}
+The evaluation also supports the low-overhead design goal of the paper, albeit mainly in structural rather than latency-microbenchmark terms. All expensive work occurs offline: energy measurement, baseline subtraction, feature extraction, and model fitting are carried out during benchmarking. At runtime, the nginx layer performs only a registry lookup plus constant, linear, or piecewise-linear arithmetic over already available request variables and optional application-provided token headers. No runtime power telemetry, GPU counters, or external carbon-accounting service calls are required on the critical request path.
+
+This supports the paper's central positioning relative to current HTTP sustainability-header proposals. The contribution is not merely a new header name, but an implementation strategy that makes per-request disclosure operationally plausible with commodity server functionality. At the same time, our current evaluation does not yet include a dedicated latency microbenchmark isolating the incremental cost of header generation itself. Quantifying that residual overhead remains future work, but the present results establish the more fundamental point: heterogeneous endpoints can be benchmarked offline, reduced to compact executable models, and disclosed online at the HTTP boundary without requiring direct per-request energy metering in production.
+
+\begin{table}[h]
+\centering
+\caption{Endpoint benchmark conditions and derived per-request energy labels.}
+\label{tab:energy}
+\begin{tabular}{p{6.0cm}rr}
+\toprule
+\textbf{Endpoint / condition} & \textbf{Requests} & \textbf{Energy [mWh/req]} \\
+\midrule
+\texttt{/login}                              & 100 & 4.038 \\
+\texttt{/logout}                             & 100 & 0.006 \\
+\texttt{/getToDos} (100 items)               & 100 & 0.072 \\
+\texttt{/getToDos} (1\,000 items)            & 100 & 0.112 \\
+\texttt{/getToDos} (10\,000 items)           & 100 & 0.125 \\
+\texttt{/getToDos} (100\,000 items)          & 100 & 0.553 \\
+\texttt{/createToDo} (text, 100 chars)       & 100 & 0.064 \\
+\texttt{/createToDo} (text, 1\,000 chars)    & 100 & 0.079 \\
+\texttt{/createToDo} (text, 10\,000 chars)   & 100 & 0.035 \\
+\texttt{/createToDo} (text, 100\,000 chars)  & 100 & 0.096 \\
+\texttt{/done}                               & 100 & 0.085 \\
+\texttt{/createToDo} (file, 1\,KB)           & 100 & 0.058 \\
+\texttt{/createToDo} (file, 10\,KB)          & 100 & 0.061 \\
+\texttt{/createToDo} (file, 100\,KB)         & 100 & 0.080 \\
+\texttt{/createToDo} (file, 1\,MB)           & 100 & 0.288 \\
+\texttt{/createToDo} (file, 5\,MB)           & 100 & 0.989 \\
+\midrule
+\texttt{/ai} (very short prompt)             &  10 & 29.978 \\
+\texttt{/ai} (short prompt)                  &  10 & 251.044 \\
+\texttt{/ai} (medium prompt)                 &  10 & 299.771 \\
+\texttt{/ai} (long prompt)                   &  10 & 229.718 \\
+\texttt{/ai} (very long prompt)              &  10 & 274.852 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 
 

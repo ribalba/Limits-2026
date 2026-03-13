@@ -3,16 +3,20 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ai_bench.sh -n <1..100000> [-b <base_url>] [-s <very-short|short|medium|long|very-long|mixed>] [-m <model>]
+Usage: ai_bench.sh -n <1..100000> [-b <base_url>] [-s <very-short|short|medium|long|very-long|mixed>] [-m <model>] [-g <num_predict>] [-r <seed>] [-T <temperature>]
 
 Options:
   -s  Prompt profile to send. `mixed` cycles through all five prompt lengths. (default: mixed)
   -m  Optional model override passed to /ai
+  -g  Max generated tokens via Ollama `num_predict` (default: 128)
+  -r  Random seed passed to Ollama for more reproducible output (default: 7)
+  -T  Temperature passed to Ollama (default: 0)
 
 Examples:
   ./scripts/ai_bench.sh -n 20
   ./scripts/ai_bench.sh -n 20 -s medium
   ./scripts/ai_bench.sh -n 20 -s very-long -m gemma3:1b
+  ./scripts/ai_bench.sh -n 20 -s mixed -g 128 -r 7 -T 0
 USAGE
 }
 
@@ -20,6 +24,9 @@ BASE_URL="http://localhost:8080"
 N=""
 PROMPT_PROFILE="mixed"
 MODEL=""
+NUM_PREDICT=128
+SEED=7
+TEMPERATURE=0
 VERY_SHORT_WORDS=10
 SHORT_WORDS=30
 MEDIUM_WORDS=100
@@ -27,12 +34,15 @@ LONG_WORDS=400
 VERY_LONG_WORDS=1000
 PROFILES=("very-short" "short" "medium" "long" "very-long")
 
-while getopts ":n:b:s:m:h" opt; do
+while getopts ":n:b:s:m:g:r:T:h" opt; do
   case "$opt" in
     n) N="$OPTARG" ;;
     b) BASE_URL="$OPTARG" ;;
     s) PROMPT_PROFILE="$OPTARG" ;;
     m) MODEL="$OPTARG" ;;
+    g) NUM_PREDICT="$OPTARG" ;;
+    r) SEED="$OPTARG" ;;
+    T) TEMPERATURE="$OPTARG" ;;
     h) usage; exit 0 ;;
     *) usage; exit 1 ;;
   esac
@@ -45,6 +55,21 @@ fi
 
 if ! [[ "$N" =~ ^[0-9]+$ ]] || (( N < 1 || N > 100000 )); then
   echo "n must be between 1 and 100000" >&2
+  exit 1
+fi
+
+if ! [[ "$NUM_PREDICT" =~ ^[0-9]+$ ]] || (( NUM_PREDICT < 1 )); then
+  echo "num_predict must be >= 1" >&2
+  exit 1
+fi
+
+if ! [[ "$SEED" =~ ^-?[0-9]+$ ]]; then
+  echo "seed must be an integer" >&2
+  exit 1
+fi
+
+if ! [[ "$TEMPERATURE" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "temperature must be a non-negative number" >&2
   exit 1
 fi
 
@@ -68,7 +93,7 @@ count_words() {
 build_prompt() {
   local profile="$1"
   local target_words="$SHORT_WORDS"
-  local prefix="Summarize these todo planning notes into three concrete action items"
+  local prefix="Summarize these todo planning notes into exactly three short concrete action items. Keep the response concise."
   local -a vocab=(
     project backlog sprint deadline meeting design review testing release
     customer outage onboarding migration cleanup priority estimate tracking
@@ -126,6 +151,7 @@ for ((i=1; i<=N; i++)); do
   if [[ -n "$MODEL" ]]; then
     REQUEST_BODY+=$(printf ',"model":"%s"' "$(json_escape "$MODEL")")
   fi
+  REQUEST_BODY+=$(printf ',"num_predict":%s,"seed":%s,"temperature":%s' "$NUM_PREDICT" "$SEED" "$TEMPERATURE")
   REQUEST_BODY+='}'
 
   HTTP_CODE=$(curl -sS \
@@ -149,5 +175,5 @@ for ((i=1; i<=N; i++)); do
     exit 1
   fi
 
-  echo "iteration=$i prompt_profile=$CURRENT_PROFILE prompt_words=$PROMPT_WORDS prompt_chars=$PROMPT_CHARS prompt_tokens=$PROMPT_TOKENS generated_tokens=$GENERATED_TOKENS"
+  echo "iteration=$i prompt_profile=$CURRENT_PROFILE prompt_words=$PROMPT_WORDS prompt_chars=$PROMPT_CHARS num_predict=$NUM_PREDICT seed=$SEED temperature=$TEMPERATURE prompt_tokens=$PROMPT_TOKENS generated_tokens=$GENERATED_TOKENS"
 done
