@@ -1,0 +1,120 @@
+{
+  "/ai": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "generated_token_coeff_mWh_per_token": 0.45736714971196907,
+      "intercept_mWh": 7.914194803922015,
+      "kind": "linear",
+      "prompt_token_coeff_mWh_per_token": 0.01299427249630113
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  },
+  "/createToDo": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "extrapolate": "linear_tail",
+      "input": "data_size",
+      "interpolate": "linear",
+      "kind": "curve",
+      "points": [
+        [
+          100.0,
+          0.0507700193620729
+        ],
+        [
+          1000.0,
+          0.05957776981829206
+        ],
+        [
+          1124.0,
+          0.07138914575102752
+        ],
+        [
+          10000.0,
+          0.038694897177638944
+        ],
+        [
+          10340.0,
+          0.07488051773686338
+        ],
+        [
+          100000.0,
+          0.07444037102238718
+        ],
+        [
+          102500.0,
+          0.11278553743987767
+        ],
+        [
+          1048676.0,
+          0.2348143067610757
+        ],
+        [
+          5242980.0,
+          0.9917408602731105
+        ]
+      ]
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  },
+  "/deleteAllToDos": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 1.811126941818174
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  },
+  "/done": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 0.08058675093855898
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  },
+  "/getToDos": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "extrapolate": "linear_tail",
+      "input": "data_size",
+      "interpolate": "linear",
+      "kind": "curve",
+      "points": [
+        [
+          49580.87,
+          0.06443147695604654
+        ],
+        [
+          231358.59,
+          0.10579936917225621
+        ],
+        [
+          2052555.99,
+          0.12082058998536026
+        ],
+        [
+          20293595.43,
+          0.5738012026625706
+        ]
+      ]
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  },
+  "/login": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 4.033401928864827
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  },
+  "/logout": {
+    "embodied_rate_gCO2e_per_s": 0.0014348752814092676,
+    "energy_model": {
+      "kind": "constant",
+      "value_mWh": 0.00927321574905939
+    },
+    "grid_intensity_gCO2e_per_kWh": 121.11093200966813
+  }
+}

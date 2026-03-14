@@ -454,18 +454,20 @@ Using these token measurements, the generated registry fits \texttt{/ai} as
 \]
 with energy in \(\mathrm{mWh}\). The fitted coefficient for generated tokens is roughly 28 times larger than the coefficient for prompt tokens. This is consistent with the serving behaviour of decoder-style inference: prompt processing matters, but the dominant marginal work occurs during token generation. In terms of the broader paper argument, this is an important result. It shows that endpoint disclosure is most useful when the reverse proxy can consume semantically meaningful application metadata instead of relying only on generic HTTP features such as payload bytes or coarse prompt categories.
 
-\subsection{Implications for deployment overhead}
-The evaluation also supports the low-overhead design goal of the paper, albeit mainly in structural rather than latency-microbenchmark terms. All expensive work occurs offline: energy measurement, baseline subtraction, feature extraction, and model fitting are carried out during benchmarking. At runtime, the nginx layer performs only a registry lookup plus constant, linear, or piecewise-linear arithmetic over already available request variables and optional application-provided token headers. No runtime power telemetry, GPU counters, or external carbon-accounting service calls are required on the critical request path.
+\subsection{Overhead}
+The evaluation supports the low-overhead design goal of the paper not only structurally, but also through a direct paired comparison. We repeated the benchmark once with the nginx disclosure module disabled and once with it enabled, while leaving the remaining setup unchanged. Using the same idle-subtracted machine-energy method as for model fitting and focusing on the conventional HTTP routes (\texttt{/login}, \texttt{/createToDo}, \texttt{/getToDos}, \texttt{/done}, \texttt{/deleteAllToDos}, and \texttt{/logout}), the request-weighted average energy increased from \SI{0.372}{mWh} to \SI{0.380}{mWh} per request. This corresponds to an overhead of \textbf{\SI{2.1}{\percent}}.
 
-This supports the paper's central positioning relative to current HTTP sustainability-header proposals. The contribution is not merely a new header name, but an implementation strategy that makes per-request disclosure operationally plausible with commodity server functionality. At the same time, our current evaluation does not yet include a dedicated latency microbenchmark isolating the incremental cost of header generation itself. Quantifying that residual overhead remains future work, but the present results establish the more fundamental point: heterogeneous endpoints can be benchmarked offline, reduced to compact executable models, and disclosed online at the HTTP boundary without requiring direct per-request energy metering in production.
+At route level, the dominant CRUD-style endpoints changed only slightly: \texttt{/login} increased by \SI{0.1}{\percent}, \texttt{/createToDo} by \SI{2.4}{\percent}, \texttt{/done} by \SI{5.7}{\percent}, and \texttt{/getToDos} decreased by \SI{0.3}{\percent}. The larger relative movements for \texttt{/logout} and \texttt{/deleteAllToDos} occur on extremely small absolute energies and are therefore better interpreted as measurement noise than as a meaningful deployment penalty. In other words, for the ordinary web endpoints that dominate the request mix, the extra work of registry lookup and header emission stays close to the noise floor of the benchmark.
+
+The AI endpoint was not used as the primary overhead indicator for this comparison because the paired runs showed much larger run-to-run variation: the average idle-subtracted energy changed from \SI{42.3}{mWh} to \SI{217.1}{mWh} per request, while the mean runtime rose from about \SI{1.04}{s} to \SI{4.73}{s}. A more than five-fold increase of this kind cannot plausibly be attributed to emitting a few additional HTTP headers in nginx; it reflects variability in the inference workload itself. A dedicated repeated microbenchmark would therefore be needed to isolate the module cost for AI serving. Even with that caveat, the present comparison establishes the main point: heterogeneous endpoints can be benchmarked offline, reduced to compact executable models, and disclosed online at the HTTP boundary with only a small measured overhead for the conventional web routes.
 
 \begin{table}[h]
 \centering
 \caption{Endpoint benchmark conditions and derived per-request energy labels.}
 \label{tab:energy}
-\begin{tabular}{p{6.0cm}rr}
+\begin{tabular}{p{5cm}rr}
 \toprule
-\textbf{Endpoint / condition} & \textbf{Requests} & \textbf{Energy [mWh/req]} \\
+\textbf{Endpoint / condition} & \textbf{Requests} & \textbf{Energy[mWh/req]} \\
 \midrule
 \texttt{/login}                              & 100 & 4.038 \\
 \texttt{/logout}                             & 100 & 0.006 \\
