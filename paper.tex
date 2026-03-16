@@ -102,7 +102,7 @@
 \begin{document}
 
 \begin{abstract}
-Machen wir dann zum schluss wenn wir alles fertig haben
+Existing proposals for HTTP sustainability disclosure focus mainly on header semantics, but say little about how a server should derive credible per-request values in practice. We present a measurement-to-disclosure approach that benchmarks endpoints offline, fits compact per-endpoint energy models, and evaluates these models online in an nginx-based prototype that emits request-level energy and \(\mathrm{CO_2e}\) metadata. The approach supports constant, payload-dependent, and token-dependent endpoint behaviour, allowing both conventional CRUD routes and an AI inference endpoint to be represented in one registry. Our evaluation shows that controlled machine-level benchmark data can be converted into executable route models and exposed at the HTTP boundary with low runtime cost. For the conventional web routes in our benchmark, enabling disclosure increased request-weighted energy by \SI{2.1}{\percent}. These results suggest that per-request sustainability disclosure over HTTP is technically feasible with compact models and commodity reverse-proxy functionality.
 \end{abstract}
 \maketitle
 
@@ -370,6 +370,13 @@ This design is deliberately ``drop-in'' for providers: it requires no kernel pat
 
 We also implemented a helper script that automaically generates the json input for the nginx module. Like this the data can be updated automatically.
 
+\subsection{Runtime behaviour of the header filter}
+The core runtime logic is implemented in \texttt{energy\_headers.js} as an nginx JavaScript header filter. At worker startup, the script normalises the preloaded JSON registry into an internal representation: route paths are canonicalised, constant and linear coefficients are stored directly, and curve-model support points are parsed and sorted once. This avoids repeated parsing work on the request path.
+
+For each response, the filter first resolves the current URI to a route entry in the compiled registry. It then reads the runtime inputs already available in nginx: upstream response time (falling back to total request time if needed) and a simple payload-size proxy derived from request and response byte counts. Token metadata is read only for routes whose model actually depends on prompt or generated tokens.
+
+Model evaluation is then a small deterministic arithmetic step. Constant routes return a fixed \(\mathrm{mWh}\) value, linear routes apply the configured coefficients, and curve routes perform piecewise-linear interpolation over the precompiled support points. The script finally converts predicted request energy into operational and embodied emissions using the per-route grid-intensity and embodied-rate values from the registry, and emits the four response headers \texttt{Request-Energy}, \texttt{Grid-Intensity}, \texttt{Request-Embodied-CO2e}, and \texttt{Request-SCI}.
+
 \subsection{JSON model registry schema}
 Listing~\ref{lst:json-registry} shows the registry format used by the nginx module. Energy values are expressed in \(\mathrm{mWh}\) to avoid underflow and to align with the prototype results in the outline. Grid intensity is expressed as \(\mathrm{gCO_2e/kWh}\); embodied rate is expressed as \(\mathrm{gCO_2e/s}\).
 
@@ -498,12 +505,22 @@ The AI endpoint was not used as the primary overhead indicator for this comparis
 
 
 \section{Discussion}
+\subsection{Provider-side analytics without host telemetry}
+The same mechanism is useful not only for external disclosure, but also for internal provider-side analytics. Today, software producers often know request counts, latency, and cost, but still have little visibility into the energy or emissions associated with their own endpoints because hosting providers usually do not expose per-service power data. With our approach, the provider can benchmark the service offline, derive per-endpoint models, and then combine these models with routine HTTP logs such as request time, payload size, response size, and optional application-level variables such as token counts. A post-processing script can then estimate and aggregate energy or \(\mathrm{CO_2e}\) per URL, customer, feature, or time window.
+
+This is a substantial shift in observability: it gives software producers a practical way to estimate the resource implications of their software even when the hosting environment remains opaque. The resulting values are not exact representations of what happens inside a production data centre, because the model is calibrated on a reference setup and production systems differ in hardware, virtualization, co-located load, caching, regional grid mix, and opaque downstream services. However, the estimates are still useful as interface-level analytics that make relative endpoint behaviour visible and actionable.
+
 \subsection{Limitations and boundary selection}
 \textbf{Microservices and external dependencies.} A single request may touch caches, databases, queues, and external services. A per-endpoint model must specify boundaries: does it include downstream service energy? In our current implementation the boundary is the SUT deployment used in benchmarking, which can incorporate dependencies if co-measured, but cannot account for opaque third-party services unless their impact is provided separately.
 
 \textbf{Caching and intermediaries.} Responses may be served by CDNs or caches, altering where energy is expended. Future work should define semantics for cache hits (e.g., origin vs edge), and potentially include a \texttt{Impact-Scope} field.
 
 \textbf{Marginal vs average energy.} Lab measurements often estimate marginal energy above idle; in production, baseline energy is non-zero regardless of traffic. Both framings are useful: marginal energy supports optimisation; average energy supports allocation. The disclosure format should permit specifying which accounting mode is used.
+
+\section{Conclusion}
+This paper argued that the main missing piece in HTTP sustainability disclosure is not only header-field semantics, but a practical method for generating credible per-request values. We showed that controlled machine-level measurements can be transformed into compact endpoint models, stored in a JSON registry, and evaluated online at the HTTP boundary by an nginx-based prototype. The evaluation demonstrates that this approach can represent heterogeneous endpoint classes, including both conventional CRUD routes and an AI inference endpoint, while remaining operationally simple enough for reverse-proxy deployment.
+
+The current prototype still leaves room for systems-level optimisation. Although the measured overhead on the conventional web routes is small, it is not zero. An important next step is therefore to re-implement the runtime header-generation path as a native nginx extension in C. Doing so would remove the remaining JavaScript interpretation overhead, reduce per-request allocations further, and allow tighter integration with nginx's internal request-processing structures.
 
 
 \bibliographystyle{ACM-Reference-Format}
