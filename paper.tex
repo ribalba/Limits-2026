@@ -40,33 +40,9 @@
 \usepackage{xcolor}
 \usepackage{ifthen}
 \usepackage{graphicx}
+\usepackage{makecell}
 
-\lstdefinelanguage{json}{
-  basicstyle=\ttfamily\footnotesize,
-  showstringspaces=false,
-  breaklines=true,
-  morestring=[b]",
-  stringstyle=\color{green!40!black},
-  commentstyle=\color{gray},
-  morecomment=[l]{//},
-  literate=
-   *{0}{{{\color{blue}0}}}{1}
-    {1}{{{\color{blue}1}}}{1}
-    {2}{{{\color{blue}2}}}{1}
-    {3}{{{\color{blue}3}}}{1}
-    {4}{{{\color{blue}4}}}{1}
-    {5}{{{\color{blue}5}}}{1}
-    {6}{{{\color{blue}6}}}{1}
-    {7}{{{\color{blue}7}}}{1}
-    {8}{{{\color{blue}8}}}{1}
-    {9}{{{\color{blue}9}}}{1}
-    {:}{{{\color{black}{:}}}}{1}
-    {,}{{{\color{black}{,}}}}{1}
-    {\{}{{{\color{black}{\{}}}}{1}
-    {\}}{{{\color{black}{\}}}}}{1}
-    {[}{{{\color{black}{[}}}}{1}
-    {]}{{{\color{black}{]}}}}{1},
-}
+
 
 
 % --- Listings setup (avoid minted for portability) ---
@@ -82,7 +58,7 @@
   belowskip=0.6em
 }
 
-\title{From Measurement to Disclosure.\\ Per-Request Emissions for HTTP}
+\title{Measure Once, Model Everywhere:\\ Model-Based Per-Request Resource Consumption for HTTP}
 
 \author{Geerd-Dietger Hoffmann}
 \affiliation{
@@ -101,8 +77,9 @@
 
 \begin{document}
 
+
 \begin{abstract}
-Existing proposals for HTTP sustainability disclosure focus mainly on header semantics, but say little about how a server should derive credible per-request values in practice. We present a measurement-to-disclosure approach that benchmarks endpoints offline, fits compact per-endpoint energy models, and evaluates these models online in an nginx-based prototype that emits request-level energy and \(\mathrm{CO_2e}\) metadata. The approach supports constant, payload-dependent, and token-dependent endpoint behaviour, allowing both conventional CRUD routes and an AI inference endpoint to be represented in one registry. Our evaluation shows that controlled machine-level benchmark data can be converted into executable route models and exposed at the HTTP boundary with low runtime cost. For the conventional web routes in our benchmark, enabling disclosure increased request-weighted energy by \SI{2.1}{\percent}. These results suggest that per-request sustainability disclosure over HTTP is technically feasible with compact models and commodity reverse-proxy functionality.
+Müssen wir noch machen
 \end{abstract}
 \maketitle
 
@@ -111,21 +88,21 @@ Existing proposals for HTTP sustainability disclosure focus mainly on header sem
 %-----------------------------------------------------------------------------------------
 
 
-Software increasingly reaches users through HTTP interfaces that sit atop opaque stacks of virtualised compute, managed platforms, third-party APIs, and geographically distributed infrastructure. This architecture has improved reliability and development velocity, but it has made environmental impact harder to observe and harder to attribute. Users can see latency and price, yet they usually cannot see the energy use or emissions associated with an individual action. Providers face the complementary problem: even when they want to disclose impact, request handling often spans caches, databases, queues, and external services, while direct power telemetry is unavailable or too coarse in cloud environments.
+Software increasingly reaches users through HTTP interfaces that sit atop opaque stacks of virtualised compute, managed platforms, third-party APIs, and geographically distributed infrastructure. This architecture has improved reliability and development velocity, but it has made environmental impact harder to observe and harder to attribute\cite{parssinen2018onlineadvertising,han2025fairco2}. Users can see latency and price, yet they usually cannot see the energy use or emissions associated with an individual action. Providers face the complementary problem: even when they want to disclose impact, request handling often spans caches, databases, queues, and external services, while direct power telemetry is unavailable or too coarse in cloud environments.
 
-A recurring idea in sustainable computing is to move disclosure closer to the interface where choices are actually made. The Software Carbon Intensity (SCI) specification expresses emissions relative to a functional unit \(R\), rather than only as annual or service-level aggregates \cite{gsf-sci}. For web systems, the natural functional unit is often the individual HTTP transaction. If request-level impact were available at the protocol boundary, clients could incorporate it into software decisions such as retry behaviour, batching, caching, provider selection, or prompt length. HTTP is therefore an attractive disclosure surface: it is already the interoperability layer across organisations, languages, and infrastructures, and it already carries operational metadata in response headers.
+A recurring idea in sustainable computing is to move disclosure closer to the interface where choices are actually made. The Software Carbon Intensity (SCI) specification expresses emissions relative to a functional unit \(R\), rather than only as annual or service-level aggregates \cite{gsf-sci}. For web systems, the natural functional unit is often the individual HTTP transaction. If request-level impact were available at the protocol boundary, clients could incorporate it into software decisions such as retry behaviour, batching, caching, provider selection, or prompt length. HTTP is therefore an attractive disclosure surface: It is the interoperability layer across organisations, languages, and infrastructures, and already carries operational metadata in response headers.
 
-The basic idea of carrying carbon information in HTTP is not new. In 2023, Martin proposed an Internet-Draft for a single response header, \texttt{Carbon-Emissions-Scope-2}, intended to communicate the emissions associated with processing a request and producing the response \cite{martin-http-carbon-emissions-scope-2-00}. Discussion in the HTTP working-group community then focused on whether such metadata should be sent by default or negotiated, how much overhead an additional header introduces, and how field naming and value design should be handled \cite{httpwg-admin-issue-52-carbon-emissions,ietf-http-wg-mailinglist-carbon-header-thread}. More recently, a new 2026 Internet-Draft has proposed a structured \texttt{Sustainability} response header carrying multiple dimensions such as Scope~2 and Scope~3 emissions, explicitly addressing concerns about metadata overhead through compression, opt-in behaviour, and proxy aggregation \cite{besleaga-green-sustainability-header-00}.
+The basic idea of carrying carbon information in HTTP is not new. In 2023, Martin proposed an Internet-Draft for a single response header, \texttt{Carbon-Emissions-Scope-2}, intended to communicate the emissions associated with processing a request and producing the response \cite{martin-http-carbon-emissions-scope-2-00}. Discussions in the HTTP working-group community then focused on whether such metadata should be sent by default or negotiated, how much overhead an additional header introduces, and how field naming and value design should be handled \cite{httpwg-admin-issue-52-carbon-emissions,ietf-http-wg-mailinglist-carbon-header-thread}. More recently, a new 2026 Internet-Draft has proposed a structured Sustainability response header carrying multiple dimensions such as Scope~2 and Scope~3 emissions, explicitly addressing concerns about metadata overhead through compression, opt-in behaviour, and proxy aggregation \cite{besleaga-green-sustainability-header-00}.
 
-However, the existing discussion is centred primarily on \emph{header semantics}: what the field should be called, what units it should use, whether it should be negotiated, and how to limit the disclosure overhead. The harder systems problem remains largely unresolved: \emph{how can a server produce credible per-request values at all?} Direct real-time energy measurement of arbitrary HTTP requests is difficult without dedicated hardware access and careful experimental control. In production, attribution is further complicated by multi-tenancy, virtualization, fluctuating load, and request fan-out across internal and external dependencies. In other words, the conceptual standardisation effort is ahead of the engineering method needed to make such disclosure operational.
+However, much of the current discussion focuses on header semantics, incl  uding the field name, units, negotiation mechanisms, and approaches to limiting disclosure overhead. Less attention has been given to the practical systems question of how a server could generate meaningful per-request values in the first place. Measuring the energy consumption of individual HTTP requests in real time is challenging without dedicated hardware access and carefully controlled experimental conditions. In production environments, attribution becomes more complex due to factors such as multi-tenancy, virtualization, varying system load, and request fan-out across internal and external services. As a result, work on conceptual standardisation currently appears to be progressing faster than the development of practical methods for operational measurement.
 
-This paper addresses exactly that implementation gap. Our contribution is not the abstract idea of an HTTP sustainability header; rather, it is a practical mechanism that makes per-request disclosure feasible under realistic observability constraints with low overhead. The central technical move is to avoid brittle online power metering in production. Instead, we benchmark endpoints offline in controlled conditions and fit compact per-endpoint energy models that can be evaluated online from variables the HTTP server already observes, such as request time and data size.
+This paper addresses this implementation gap by presenting a practical mechanism for per-request energy disclosure. Rather than focusing on the concept of an HTTP sustainability header itself, the work concentrates on how such values can be generated under realistic observability constraints and with minimal runtime overhead. The approach avoids relying on real-time power measurements in production environments, which are often difficult to obtain reliably. Instead, endpoints are benchmarked offline under controlled conditions to derive compact energy models. These models can subsequently be evaluated at request time using variables that are already observable by the HTTP server, such as request duration and response size.
 
 This paper makes four contributions:
-(1) it distinguishes the protocol-level question of \emph{what to disclose} from the systems question of \emph{how to generate request-level values}, and argues that the latter is the missing piece in current HTTP sustainability discussions;
-(2) it presents a measurement-to-model method that converts controlled endpoint benchmarks into compact runtime-evaluable energy models;
-(3) it implements this approach as an nginx module that reads a JSON model registry and emits per-request energy and \(\mathrm{CO_2e}\) metadata, including operational and embodied components;
-and (4) it evaluates the feasibility and overhead of this approach on conventional web endpoints and on an AI inference endpoint.
+(1) It separates the protocol-level question of \emph{what to disclose} from the systems question of \emph{how to generate request-level values}, and identifies the latter as a key gap in current HTTP sustainability discussions.
+(2) It proposes a measurement-to-model pipeline that derives compact energy models for HTTP endpoints from controlled offline benchmarks.
+(3) It presents an implementation as an nginx module that reads a JSON model registry and emits per-request energy and \(\mathrm{CO_2e}\) metadata, including operational and embodied components, and
+(4) it evaluates the feasibility and runtime overhead of the approach on conventional web and AI inference endpoints.
 
 %-----------------------------------------------------------------------------------------
 \section{Background}
@@ -263,7 +240,7 @@ The key point is that request-level disclosure should be understood as an \emph{
 This section describes how we generated the measurement variables used to fit the per-endpoint energy models (Section~\ref{sec:methods}) and populate the JSON registry (Listing~\ref{lst:json-registry}). Concretely, we produce per-request energy values \(E\) (in \(\mathrm{mWh}\)) from controlled experiments, and pair them with runtime-observable features such as request processing time \(t\), request bytes \(b^{req}\), response bytes \(b^{res}\), HTTP method \(m\), response status \(r\), URL-parameter-derived features \(q\), and, for AI endpoints, token count \(\tau\).
 
 \subsection{Measurement environment and tooling}
-All measurements were executed using the Green Metrics Tool (GMT)\cite{greenmetricstool} in a controlled cluster setting. We used a dedicated machine, chosen to match the dominant workload class and to maximise reproducibility:
+All measurements were executed using the Green Metrics Tool (GMT) \cite{greenmetricstool} in a controlled cluster setting. We used a dedicated machine, chosen to match the dominant workload class and to maximise reproducibility.
 
 We used the GMT ``ML/AI Profiling'' profile on a dedicated server-class system with an NVIDIA GeForce GTX 1080 GPU:
 \begin{itemize}
@@ -303,7 +280,7 @@ We implemented a minimal REST-style ToDo application in Python that serves HTTP 
 
 We deliberately excluded HTTPS from the measurements to avoid entangling endpoint energy with TLS handshake and encryption overhead. In deployments where HTTPS is mandatory (typical on the public internet), TLS overhead can be accounted for as (i) a separate endpoint-independent constant term, or (ii) a distinct model variant keyed by protocol configuration.
 
-We created an autmated benchmark script that calls each endpoint a number of times with varying data sizes as can be seen in table X TODO.
+We created an automated benchmark script that calls each endpoint a number of times with varying data sizes as can be seen in table X TODO.
 
 
 \subsection{Experimental design and repetitions}
@@ -472,9 +449,9 @@ The AI endpoint was not used as the primary overhead indicator for this comparis
 \centering
 \caption{Endpoint benchmark conditions and derived per-request energy labels.}
 \label{tab:energy}
-\begin{tabular}{p{5cm}rr}
+\begin{tabular}{p{4.3cm}rr}
 \toprule
-\textbf{Endpoint / condition} & \textbf{Requests} & \textbf{Energy[mWh/req]} \\
+\textbf{Endpoint / condition} & \textbf{Requests} & \textbf{\makecell[r]{Energy\\ {\footnotesize (mWh/req)}}} \\
 \midrule
 \texttt{/login}                              & 100 & 4.038 \\
 \texttt{/logout}                             & 100 & 0.006 \\
