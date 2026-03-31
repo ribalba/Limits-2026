@@ -64,7 +64,7 @@
 
 
 \begin{abstract}
-Recent proposals for HTTP-based sustainability disclosure focus on \textbf{what} environmental information should be transmitted at the protocol boundary, for example through response headers, but leave open the practical question of \textbf{how} such per-request values can be generated in realistic deployments. This paper addresses that implementation gap. We present a model-based approach for estimating resource consumption and \(\mathrm{CO_2e}\) per HTTP request without requiring fine-grained production power telemetry. The approach benchmarks endpoints offline under controlled conditions, derives compact endpoint-specific energy models from observable request features, and evaluates these models online at the HTTP server boundary. We implement this mechanism as an nginx extension that loads a JSON model registry and emits per-request metadata for energy, grid intensity, embodied emissions, and total request-level impact. Using a benchmark application with conventional CRUD (Create, Read, Update, Delete) endpoints and an LLM inference endpoint, we show that heterogeneous request classes can be represented with constant, linear, and piecewise models, including token-based modelling for inference workloads. Our evaluation indicates that the approach is operationally feasible and introduces only low runtime overhead. 
+Recent proposals for HTTP-based sustainability disclosure focus on \textbf{what} environmental information should be transmitted at the protocol boundary, for example through response headers, but leave open the practical question of \textbf{how} such per-request values can be generated in realistic deployments. This paper addresses that implementation gap. We present a model-based approach for estimating resource consumption and \(\mathrm{CO_2e}\) per HTTP request without requiring fine-grained production power telemetry. The approach benchmarks endpoints offline under controlled conditions, derives compact endpoint-specific energy models from observable request features, and evaluates these models online at the HTTP server boundary. We implement this mechanism as an nginx extension that loads a JSON model registry and emits per-request metadata for energy, grid intensity, embodied emissions, and total request-level impact. Using a benchmark application with conventional CRUD (Create, Read, Update, Delete) endpoints and an LLM inference endpoint, we show that heterogeneous request classes can be represented with constant, linear, and piecewise models, including token-based modelling for inference workloads. Our evaluation indicates that the approach is operationally feasible and introduces only low runtime overhead.
 \end{abstract}
 \maketitle
 
@@ -100,11 +100,11 @@ This paper addresses this gap by introducing a practical, model-based method for
 
 This paper makes four contributions:
 (1) It separates the protocol-level question of \emph{what to disclose} from the systems question of \emph{how to generate request-level values}, and
-identifies the latter as a key gap in current HTTP sustainability discussions. 
+identifies the latter as a key gap in current HTTP sustainability discussions.
 (2) It proposes a measurement-to-model pipeline that derives compact, interpretable, and executable energy models for HTTP endpoints from controlled
-offline benchmarks. 
+offline benchmarks.
 (3) It demonstrates how these models can be evaluated at the HTTP server boundary and exposed as request-level sustainability metadata, while keeping
-underlying assumptions explicit. 
+underlying assumptions explicit.
 (4) It evaluates the feasibility, expressiveness, and runtime overhead of the approach across heterogeneous endpoints, including conventional web services
 and AI inference workloads.
 
@@ -348,23 +348,25 @@ request-scoped metadata (e.g., via internal headers or server variables).
 
 The models above provide per-request energy estimates. To obtain a more interpretable sustainability metric, we convert predicted energy into carbon emissions by accounting for both operational energy use and embodied hardware impact.
 
-We express per-request emissions in \(\mathrm{CO_2e}\) by separating operational and embodied components. This distinction captures both the energy consumed during request execution and the amortised impact of the underlying hardware.
+In the prototype implementation, per-request carbon outputs are emitted in \(\mathrm{mgCO_2e}\). We therefore separate operational and embodied components in that unit. This distinction captures both the energy consumed during request execution and the amortised impact of the underlying hardware.
 
 \textbf{Operational emissions.}
-Operational emissions are derived directly from the predicted energy consumption. Let \(\widehat{E}_e\) denote the predicted energy per request (in \(\mathrm{kWh}\)) and \(I\) the grid carbon intensity (in \(\mathrm{gCO_2e/kWh}\)). The resulting operational emissions are given by:
+Operational emissions are derived directly from the predicted energy consumption. Let \(\widehat{E}_e\) denote the predicted energy per request (in \(\mathrm{mWh}\)) and \(I\) the grid carbon intensity (in \(\mathrm{gCO_2e/kWh}\)). Since \(\SI{1}{kWh} = 10^6\,\si{mWh}\) and \(\SI{1}{g} = 1000\,\si{mg}\), the operational emissions emitted by the prototype are:
 \[
-\widehat{C}^{op}_e = \widehat{E}_e \cdot I.
+\widehat{C}^{op}_e = \widehat{E}_e \cdot \frac{I}{1000},
 \]
+with \(\widehat{C}^{op}_e\) expressed in \(\mathrm{mgCO_2e}\).
 
 \textbf{Embodied emissions as a time-based allocation.}
-Embodied emissions capture the carbon cost of manufacturing and provisioning the hardware. Let \(M\) denote the total embodied emissions of the system (in \(\mathrm{gCO_2e}\)), and \(T\) an assumed operational lifetime (in seconds). We model embodied emissions as a constant emission rate:
+Embodied emissions capture the carbon cost of manufacturing and provisioning the hardware. Let \(M\) denote the total embodied emissions of the system (in \(\mathrm{gCO_2e}\)), and \(T\) an assumed operational lifetime (in seconds). We model embodied emissions as a constant emission rate stored in the registry as:
 \[
 r^{emb} = \frac{M}{T}\ \mathrm{\Bigl(\frac{gCO_2e}{s}\Bigr)}.
 \]
-For a request with processing time \(t\), this yields:
+For a request with processing time \(t\), the prototype converts this rate to \(\mathrm{mgCO_2e}\) and emits:
 \[
-\widehat{C}^{emb}_e = r^{emb} \cdot t.
+\widehat{C}^{emb}_e = 1000 \cdot r^{emb} \cdot t,
 \]
+with \(\widehat{C}^{emb}_e\) expressed in \(\mathrm{mgCO_2e}\).
 
 Finally, total per-request emissions are defined as the sum of operational and embodied components:
 \[
@@ -395,7 +397,7 @@ The choice therefore should not be treated as a measurement detail, but as an ex
 %-----------------------------------------------------------------------------------------
 \section{Measurement Setup and Data Collection}
 %-----------------------------------------------------------------------------------------
-
+\label{sec:measurement}
 This section describes how we generate per-request energy labels \(E\) (in \(\mathrm{mWh}\)) from controlled experiments. These measurements form the basis for fitting the per-endpoint energy models described in Section~\ref{sec:methods}. For each request, we record energy at the machine boundary and associate it with request-level observations obtained during benchmarking, including request processing time, data transfer volume, and endpoint-specific workload parameters.
 
 All measurements were executed using the Green Metrics Tool (GMT) \cite{greenmetricstool} in a controlled measurement setup. Experiments were conducted on a dedicated machine to ensure reproducibility and minimise interference from background workloads.
@@ -429,6 +431,7 @@ We implemented a minimal REST-style ToDo application in Python that serves HTTP 
         /createToDo  & Takes a title, text and attachment and creates a new "todo" item in the database \\
         /done &  Given a todo id marks it as done in the DB \\
         /getToDos  & Returns all the todos of the user \\
+        /deleteAllToDos & Deletes all the todos of the user \\
         /ai & Given a text sends it to an LLM for autocompletion and returns the ai response \\
     \end{tabular}
     \caption{Rest Endpoints}
@@ -441,19 +444,13 @@ We created an automated benchmark script that calls each endpoint a number of ti
 
 
 \subsection{Benchmarking}
-As previously discussed there are two two types of endpoint, constant and dependent. Each endpoint was benchmarked with its own workload script designed to expose the endpoint’s expected scaling factors:
-\begin{itemize}
-  \item \textbf{Constant-cost endpoints} (e.g., authentication-style requests) were exercised under repeated identical inputs to estimate a stable mean and variance.
-  \item \textbf{Data-dependent endpoints} were executed with systematic sweeps over input sizes (e.g., ToDo text length, attachment size, or AI token count) to obtain an energy curve over payload sizes.
-\end{itemize}
-
-Stateful endpoints requiring authentication were benchmarked with a pre-acquired session cookie. The cookie was captured once and reused across runs to avoid repeatedly measuring login overhead when benchmarking other endpoints.
+As previously discussed there are three types of models, constant, dependent and curve. Each endpoint was benchmarked with its own workload script designed to expose the endpoint's expected scaling factors. Stateful endpoints requiring authentication were benchmarked with a pre-acquired session cookie. The cookie was captured once and reused across runs to avoid repeatedly measuring login overhead when benchmarking other endpoints.
 
 We do not use one uniform repetition count for all endpoints. Instead, we choose the number of calls per benchmark condition according to the expected signal strength. For very small endpoints such as \texttt{/login} and \texttt{/logout}, single-request energy values are too small relative to machine-level measurement noise, so we execute 100 calls per condition and divide the measured machine energy by the number of calls. We use the same 100-call batch size for the CRUD-style web endpoints \texttt{/createToDo} and \texttt{/getToDos}. For \texttt{/done}, each benchmark condition first creates 100 ToDo items and then marks each of them once, yielding 100 \texttt{/done} requests for that condition. For \texttt{/ai}, we use 10 requests per prompt profile because each inference call is much longer and already produces a clearly measurable energy signal.
 
 For stateful workload blocks we keep the batching strategy aligned with the application semantics. A \texttt{/createToDo} condition creates 100 items with either a fixed text length (100, 1000, 10000, or 100000 characters) or a fixed attachment size (1\,KB, 10\,KB, 100\,KB, 1\,MB, or 5\,MB). The subsequent \texttt{/getToDos} condition is then executed 100 times against that populated state. The \texttt{/done} condition marks the 100 created items exactly once each, which again yields 100 measured requests. After each block, \texttt{/deleteAllToDos} is called only for cleanup so that the next condition starts from a controlled and comparable state. In the AI case, the benchmark uses five prompt profiles and issues 10 requests per profile, because inference latency and energy are high enough that additional repetition is less critical for signal extraction than for the lightweight REST endpoints.
 
-For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve local inference on the same machine. We used \texttt{gemma3:1b}, a lightweight text-only model from Google’s Gemma 3 family, as the inference backend for our experiments. Its comparatively small parameter size makes it suitable for local serving scenarios while still supporting context windows of up to 32k tokens. To stabilise inference behaviour:
+For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve local inference on the same machine. We used \texttt{gemma3:1b}, a lightweight text-only model from Google's Gemma 3 family, as the inference backend for our experiments. Its comparatively small parameter size makes it suitable for local serving scenarios while still supporting context windows of up to 32k tokens. To stabilise inference behaviour:
 \begin{itemize}
   \item the model was downloaded before the benchmark window started,
   \item caches were prewarmed (warm-up requests executed before sampling),
@@ -469,7 +466,7 @@ GMT produces power/energy traces for each benchmark run at the machine boundary.
 \[
 E = \frac{E_{\text{machine}}}{n},
 \]
-where \(E_{\text{machine}}\) is the total machine energy measured energy during the benchmark interval and \(n\) is the number of requests executed in that interval. This yields a marginal per-request estimate aligned with the modelling goal (endpoint-attributable energy). We manually checked the energy curve to verify that it was constant.
+where \(E_{\text{machine}}\) is the total machine energy measured energy during the benchmark interval and \(n\) is the number of requests executed in that interval. This yields per-request estimate aligned with the modelling goal (endpoint-attributable energy).
 
 \subsection{Mapping to runtime-observable model features}
 For each measured request, we associate the energy label \(E\) with features that are available (or can be made available at low cost) at the HTTP server boundary:
@@ -509,7 +506,7 @@ The core runtime logic is implemented in \texttt{energy\_headers.js} as an nginx
 
 For each response, the filter first resolves the current URI to a route entry in the compiled registry. It then reads the runtime inputs already available in nginx: upstream response time (falling back to total request time if needed) and a simple payload-size proxy derived from request and response byte counts. Token metadata is read only for routes whose model actually depends on prompt or generated tokens.
 
-Model evaluation is then a small deterministic arithmetic step. Constant routes return a fixed \(\mathrm{mWh}\) value, linear routes apply the configured coefficients, and curve routes perform piecewise-linear interpolation over the precompiled support points. The script finally converts predicted request energy into operational and embodied emissions using the per-route grid-intensity and embodied-rate values from the registry, and emits the four response headers \texttt{Request-Energy}, \texttt{Grid-Intensity}, \texttt{Request-Embodied-CO2e}, and \texttt{Request-SCI}.
+Model evaluation is then a small deterministic arithmetic step. Constant routes return a fixed \(\mathrm{mWh}\) value, linear routes apply the configured coefficients, and curve routes perform piecewise-linear interpolation over the precompiled support points. The script finally converts predicted request energy into operational and embodied emissions using the per-route grid-intensity and embodied-rate values from the registry, and emits the four response headers \texttt{Request-Energy}, \texttt{Grid-Intensity}, \texttt{Request-Embodied-CO2e}, and \texttt{Request-SCI}. In the implementation, the two carbon headers are emitted in \(\mathrm{mgCO_2e}\).
 
 \subsection{JSON model registry schema}
 Listing~\ref{lst:json-registry} shows the registry format used by the nginx module. Energy values are expressed in \(\mathrm{mWh}\) to avoid underflow and to align with the prototype results in the outline. Grid intensity is expressed as \(\mathrm{gCO_2e/kWh}\); embodied rate is expressed as \(\mathrm{gCO_2e/s}\).
@@ -573,7 +570,7 @@ Grid intensity can be (i) a deployment-time constant (e.g., location average), (
 The goal of the evaluation is not to optimise one particular ToDo service, but to test the central claim of the paper: that machine-level benchmark measurements can be transformed into compact per-endpoint models that are executable at the HTTP boundary. We therefore evaluate the approach along three questions. First, can the controlled GMT measurements be converted into a complete registry covering heterogeneous endpoint types? Second, do the fitted models preserve the expected scaling behaviour of CRUD-style and AI-style requests? Third, does the resulting disclosure mechanism remain lightweight enough to be plausible for reverse-proxy deployment?
 
 \subsection{From benchmark traces to executable route models}
-Using the benchmark setup from Section~\ref{sec:methods} and the automatic registry generator described in Section~\ref{sec:implementation}, we converted the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This step is already a substantive feasibility result: the benchmark data was sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the generated registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} are represented by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} is represented by a token-linear model.
+Using the benchmark setup from Section~\ref{sec:measurement} and the automatic registry generator described in Section~\ref{sec:implementation}, we converted the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This step is already a substantive feasibility result: the benchmark data was sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the generated registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} are represented by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} is represented by a token-linear model.
 
 The conversion step also yielded deployment-level carbon parameters shared across routes. For the measured system, the derived grid-intensity value was \(\num{121.111}\,\mathrm{gCO_2e/kWh}\), and the embodied allocation rate was approximately \(\num{0.001}\,\mathrm{gCO_2e/s}\). These values are not universal constants; they are artefacts of the measured deployment and are exactly the kind of assumptions that must be made explicit if HTTP-level disclosure is to be interpretable. This is important in the broader context of the paper: the prototype does not merely emit a final carbon number, but also exposes the conversion factors that produced it.
 
@@ -599,7 +596,7 @@ Using these token measurements, the generated registry fits \texttt{/ai} as
 with energy in \(\mathrm{mWh}\). The fitted coefficient for generated tokens is roughly 28 times larger than the coefficient for prompt tokens. This is consistent with the serving behaviour of decoder-style inference: prompt processing matters, but the dominant marginal work occurs during token generation. In terms of the broader paper argument, this is an important result. It shows that endpoint disclosure is most useful when the reverse proxy can consume semantically meaningful application metadata instead of relying only on generic HTTP features such as payload bytes or coarse prompt categories.
 
 \subsection{Overhead}
-The evaluation supports the low-overhead design goal of the paper not only structurally, but also through a direct paired comparison. We repeated the benchmark once with the nginx disclosure module disabled and once with it enabled, while leaving the remaining setup unchanged. Using the same idle-subtracted machine-energy method as for model fitting and focusing on the conventional HTTP routes (\texttt{/login}, \texttt{/createToDo}, \texttt{/getToDos}, \texttt{/done}, \texttt{/deleteAllToDos}, and \texttt{/logout}), the request-weighted average energy increased from \SI{0.372}{mWh} to \SI{0.380}{mWh} per request. This corresponds to an overhead of \textbf{\SI{2.1}{\percent}}.
+The evaluation supports the low-overhead design goal of the paper not only structurally, but also through a direct paired comparison. We repeated the benchmark once with the nginx disclosure module disabled and once with it enabled, while leaving the remaining setup unchanged. Using the same machine-energy method as for model fitting and focusing on the conventional HTTP routes (\texttt{/login}, \texttt{/createToDo}, \texttt{/getToDos}, \texttt{/done}, \texttt{/deleteAllToDos}, and \texttt{/logout}), the request-weighted average energy increased from \SI{0.372}{mWh} to \SI{0.380}{mWh} per request. This corresponds to an overhead of \textbf{\SI{2.1}{\percent}}.
 
 At route level, the dominant CRUD-style endpoints changed only slightly: \texttt{/login} increased by \SI{0.1}{\percent}, \texttt{/createToDo} by \SI{2.4}{\percent}, \texttt{/done} by \SI{5.7}{\percent}, and \texttt{/getToDos} decreased by \SI{0.3}{\percent}. The larger relative movements for \texttt{/logout} and \texttt{/deleteAllToDos} occur on extremely small absolute energies and are therefore better interpreted as measurement noise than as a meaningful deployment penalty. In other words, for the ordinary web endpoints that dominate the request mix, the extra work of registry lookup and header emission stays close to the noise floor of the benchmark.
 
