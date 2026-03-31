@@ -39,7 +39,8 @@
   xleftmargin=0.0em,
   xrightmargin=0.0em,
   aboveskip=0.6em,
-  belowskip=0.6em
+  belowskip=0.6em,
+  escapeinside={(*@}{@*)}
 }
 
 \title{Measure Once, Model Everywhere:\\ Model-Based Per-Request Resource Consumption for HTTP}
@@ -452,8 +453,7 @@ We do not use one uniform repetition count for all endpoints. Instead, we choose
 
 For stateful workload blocks we keep the batching strategy aligned with the application semantics. A \texttt{/createToDo} condition creates 100 items with either a fixed text length (100, 1000, 10000, or 100000 characters) or a fixed attachment size (1\,KB, 10\,KB, 100\,KB, 1\,MB, or 5\,MB). The subsequent \texttt{/getToDos} condition is then executed 100 times against that populated state. The \texttt{/done} condition marks the 100 created items exactly once each, which again yields 100 measured requests. After each block, \texttt{/deleteAllToDos} is called only for cleanup so that the next condition starts from a controlled and comparable state. In the AI case, the benchmark uses five prompt profiles and issues 10 requests per profile, because inference latency and energy are high enough that additional repetition is less critical for signal extraction than for the lightweight REST endpoints.
 
-%%\subsection{AI endpoint configuration and token variable}
-For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve local inference on the same machine. We benchmarked the \texttt{gemma3:1b} model. To stabilise inference behaviour:
+For the \texttt{/ai} endpoint we used an \texttt{ollama} container to serve local inference on the same machine. We used \texttt{gemma3:1b}, a lightweight text-only model from Google’s Gemma 3 family, as the inference backend for our experiments. Its comparatively small parameter size makes it suitable for local serving scenarios while still supporting context windows of up to 32k tokens. To stabilise inference behaviour:
 \begin{itemize}
   \item the model was downloaded before the benchmark window started,
   \item caches were prewarmed (warm-up requests executed before sampling),
@@ -535,25 +535,30 @@ We therefore use multiple response headers in this example. This is not primaril
   \item \texttt{Request-SCI}: Total emissions for this request, in \(\mathrm{mgCO_2e}\).
 \end{itemize}
 
-In Listing~\ref{lst:curl} one can see the exact headers that are returned for an example curl request.
+In Listing~\ref{lst:curl} one can see the exact headers that are returned for an example curl request. We have removed the cookie details to make the request easier to read.
 
-(TODO: Update this with new values from benchmark)
 \begin{lstlisting}[float,language=bash,caption={Example response headers from the prototype nginx module (from the outline).},label={lst:curl}]
-curl -sS -D - -o /dev/null \
+$ curl -sS -D - -o /dev/null \
   -X POST "http://localhost:8080/login" \
   -H "Content-Type: application/json" \
   -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}"
 
-HTTP/1.1 400 Bad Request
+HTTP/1.1 200 OK
 Server: nginx/1.25.5
-Date: Wed, 18 Feb 2026 14:58:35 GMT
+Date: Tue, 31 Mar 2026 07:10:41 GMT
 Content-Type: application/json
-Content-Length: 56
+Content-Length: 55
 Connection: keep-alive
-Request-Energy: 3.756400
-Grid-Intensity: 250.500000
-Request-Embodied-CO2e: 940.978200
-Request-SCI: 940.978201
+Vary: Cookie
+X-Content-Type-Options: nosniff
+Referrer-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin
+Set-Cookie: csrftoken=xxx; ...
+Set-Cookie: sessionid=xxx; ..
+(*@{\bfseries\ttfamily Request-Energy: 4.038}@*)
+(*@{\bfseries\ttfamily Grid-Intensity: 121.111}@*)
+(*@{\bfseries\ttfamily Request-Embodied-CO2e: 0.143}@*)
+(*@{\bfseries\ttfamily Request-SCI: 0.633}@*)
 \end{lstlisting}
 
 
@@ -562,18 +567,17 @@ Including grid intensity is important because request energy alone does not tell
 
 Grid intensity can be (i) a deployment-time constant (e.g., location average), (ii) read from a periodically updated local file, or (iii) fetched from an internal endpoint. We recommend caching with a TTL aligned to the signal granularity (e.g., 5-60 minutes) to avoid network amplification and to ensure stable performance. Where time shifting or multi-region deployments exist, the intensity should be scoped to the execution region (and, ideally, to marginal intensity), this paper treats this as a future extension rather than a requirement.
 
-
 \section{Evaluation}
 \label{sec:evaluation}
 \subsection{Evaluation goals}
 The goal of the evaluation is not to optimise one particular ToDo service, but to test the central claim of the paper: that machine-level benchmark measurements can be transformed into compact per-endpoint models that are executable at the HTTP boundary. We therefore evaluate the approach along three questions. First, can the controlled GMT measurements be converted into a complete registry covering heterogeneous endpoint types? Second, do the fitted models preserve the expected scaling behaviour of CRUD-style and AI-style requests? Third, does the resulting disclosure mechanism remain lightweight enough to be plausible for reverse-proxy deployment?
 
 \subsection{From benchmark traces to executable route models}
-Using the benchmark setup from Section~\ref{sec:methods} and the automatic registry generator described in Section~4, we converted the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This step is already a substantive feasibility result: the benchmark data was sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the generated registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} are represented by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} is represented by a token-linear model.
+Using the benchmark setup from Section~\ref{sec:methods} and the automatic registry generator described in Section~\ref{sec:implementation}, we converted the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This step is already a substantive feasibility result: the benchmark data was sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the generated registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} are represented by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} is represented by a token-linear model.
 
 The conversion step also yielded deployment-level carbon parameters shared across routes. For the measured system, the derived grid-intensity value was \(\num{121.111}\,\mathrm{gCO_2e/kWh}\), and the embodied allocation rate was approximately \(\num{0.001}\,\mathrm{gCO_2e/s}\). These values are not universal constants; they are artefacts of the measured deployment and are exactly the kind of assumptions that must be made explicit if HTTP-level disclosure is to be interpretable. This is important in the broader context of the paper: the prototype does not merely emit a final carbon number, but also exposes the conversion factors that produced it.
 
-\subsection{CRUD endpoints: compact models capture distinct scaling regimes}
+\subsection{CRUD endpoints}
 The generated registry shows that the REST endpoints fall into clearly different behavioural classes. Authentication-related requests are close to constant cost. The fitted \texttt{/logout} model is only \SI{0.006}{mWh} per request, while \texttt{/login} is substantially larger at \SI{4.038}{mWh} because it includes credential verification and cyptographic session establishment. The \texttt{/done} endpoint is also close to constant scale, with a fitted value of \SI{0.085}{mWh} per request across the measured data conditions. This matches the intuition that these routes perform limited work whose cost is weakly dependent on request payload.
 
 The payload-dependent endpoints exhibit the opposite pattern. For \texttt{/createToDo}, the fitted curve is almost flat for small text-only requests, but grows sharply once file uploads become large. Across the measured conditions, a \texttt{/createToDo} request with a short text body required about \SI{0.064}{mWh}, whereas the \SI{5}{MB} attachment condition reached \SI{0.989}{mWh} per request, more than a fifteen-fold increase. The intermediate file sizes (\SI{1}{KB}, \SI{10}{KB}, \SI{100}{KB}, \SI{1}{MB}) produce a visible progression, confirming that the curve model captures a meaningful size effect rather than pure noise.
@@ -582,7 +586,7 @@ For \texttt{/getToDos}, the fitted model scales with the size of the returned co
 
 These results also highlight an important methodological point. The curve models are not intended to be perfect physical simulations of the endpoint implementations. Rather, they are compact interface-level abstractions that preserve the major decision-relevant differences between small and large requests. This is precisely the level of fidelity needed for protocol-level disclosure.
 
-\subsection{AI endpoint: token metadata is more informative than prompt labels alone}
+\subsection{AI endpoint}
 The AI endpoint is the clearest example of why application-supplied variables matter. If one looked only at the prompt-profile labels (\texttt{very-short}, \texttt{short}, \texttt{medium}, \texttt{long}, \texttt{very-long}), the measured runtimes are not strictly monotonic. In our run, the \texttt{medium} profile took longer than the \texttt{very-long} profile. On its face this could appear inconsistent with the expectation that longer prompts should consume more energy.
 
 The auxiliary benchmark output resolves this apparent contradiction. Prompt-token counts do increase monotonically across profiles, from roughly 20 tokens for \texttt{very-short} to about 1010 for \texttt{very-long}. Generated-token counts, however, vary substantially between runs and do not increase monotonically with prompt length. In this measurement, the average generated-token counts were approximately 46.4 (\texttt{very-short}), 505.8 (\texttt{short}), 600.7 (\texttt{medium}), 446.5 (\texttt{long}), and 518.4 (\texttt{very-long}). The non-monotonic response lengths explain why prompt labels alone are a poor runtime predictor.
