@@ -350,13 +350,13 @@ The models above provide per-request energy estimates. To obtain a more interpre
 
 We express per-request emissions in \(\mathrm{CO_2e}\) by separating operational and embodied components. This distinction captures both the energy consumed during request execution and the amortised impact of the underlying hardware.
 
-\textbf{Operational emissions.}
+\textbf{Operational emissions}
 Operational emissions are derived directly from the predicted energy consumption. Let \(\widehat{E}_e\) denote the predicted energy per request (in \(\mathrm{kWh}\)) and \(I\) the grid carbon intensity (in \(\mathrm{gCO_2e/kWh}\)). The resulting operational emissions are given by:
 \[
 \widehat{C}^{op}_e = \widehat{E}_e \cdot I.
 \]
 
-\textbf{Embodied emissions as a time-based allocation.}
+\textbf{Embodied emissions as a time-based allocation}
 Embodied emissions capture the carbon cost of manufacturing and provisioning the hardware. Let \(M\) denote the total embodied emissions of the system (in \(\mathrm{gCO_2e}\)), and \(T\) an assumed operational lifetime (in seconds). We model embodied emissions as a constant emission rate:
 \[
 r^{emb} = \frac{M}{T}\ \mathrm{\Bigl(\frac{gCO_2e}{s}\Bigr)}.
@@ -412,7 +412,7 @@ We used the GMT ``ML/AI Profiling'' profile on a server-class system with the fo
 Turbo boost and dynamic frequency scaling were left enabled to reflect typical deployment conditions. The system runs NOP Linux, a minimal environment with non-essential processes disabled to reduce measurement noise.
 
 \subsection{Measurement Practice}
-To obtain stable energy measurements, we followed the Green Coding best practices for controlled benchmarking\cite{greencoding_bestpractices}. These practices stress that software-energy measurements are sensitive to noise and should therefore be performed under controlled conditions, with temperature effects, idle baselines, and run-to-run variance taken into account.
+To obtain stable energy measurements, we followed the Green Coding best practices for controlled benchmarking \cite{greencoding_bestpractices}. These practices stress that software-energy measurements are sensitive to noise and should therefore be performed under controlled conditions, with temperature effects, idle baselines, and run-to-run variance taken into account.
 
 Concretely, we ran the service under test (SUT) on an isolated machine with minimal background activity. We disabled unnecessary processes, and avoided interactive use of the system during measurements. Before sampling, we warmed up the SUT to reach a steady state. We then recorded an idle baseline for a comparable interval. During the experiments, we varied one workload factor at a time, such as payload size or token count, and repeated each condition often enough to make the signal distinguishable from measurement noise. As recommended in the Green Coding documentation, the exact number of repetitions depended on the variance and expected signal strength of the endpoint under test.
 
@@ -464,7 +464,8 @@ We treat token counts as first-class measurement variables for \texttt{/ai}. In 
 
 Prior work suggests that generated token count is a practical proxy for LLM inference cost under fixed serving conditions. Output length has been shown to scale approximately linearly with inference latency, and prior energy studies also report strong correlations between energy use and output-token count \cite{yang2024queueing,poddar2025towards,caravaca2025promptstopower}. This makes it feasible to use generated token count as a factor in our \texttt{/ai} endpoint model.
 
-\subsection{Deriving per-request energy labels from GMT exports}
+%\subsection{Deriving per-request energy labels from GMT exports}
+\subsection{Per-Request Energy Labels}
 GMT produces power/energy traces for each benchmark run at the machine boundary. We exported per-run energy values and converted them into per-request labels \(E\) (in \(\mathrm{mWh}\)) for model fitting. For each condition we compute:
 \[
 E = \frac{E_{\text{machine}}}{n},
