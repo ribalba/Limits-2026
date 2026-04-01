@@ -117,14 +117,20 @@ or prompt design.
 
 HTTP is a natural disclosure surface, and prior work has proposed response headers for communicating carbon information~\cite{martin-http-carbon-emissions-scope-2-00,httpwg-admin-issue-52-carbon-emissions,ietf-http-wg-mailinglist-carbon-header-thread,besleaga-green-sustainability-header-00}. However, these efforts focus on \emph{what} to disclose, not on how to derive per-request values in practice.
 
-From a resource reduction perspective, however, better disclosure is valuable only insofar
-as it helps computing adapt to ecological and material constraints rather than
-simply optimise the status quo more precisely. Nardi et al.\ argue that
-computing research should support transitions toward well-being within
-planetary limits and make growth-oriented assumptions visible and contestable
-\cite{nardi2018computingwithinlimits}. In that sense, request-level
-sustainability metadata is not an end in itself, but a transitional mechanism
-for making software demand legible at the interface where it is created.
+From a resource-reduction perspective, however, disclosure is valuable
+only insofar as it supports transitions toward operating within
+ecological constraints rather than optimising the status quo more
+precisely.  Nardi et al.\ argue that computing research should make
+growth-oriented assumptions visible and contestable~\cite{nardi2018computingwithinlimits}.
+Per-request sustainability metadata serves this function in a specific
+way: it makes the marginal environmental cost of software demand
+legible at the exact interface where that demand is created.  Without
+such legibility, neither providers nor consumers can distinguish
+high-cost from low-cost interactions, and sustainability
+considerations remain structurally excluded from the design decisions
+that shape aggregate resource consumption.  The mechanism is therefore
+not an end in itself, but a precondition for constraint-aware software
+practice.
 
 In production systems, per-request energy and emissions are not directly observable. Attribution is complicated by multi-tenancy, virtualization, and
 request fan-out, while hardware telemetry is coarse or unavailable. The core challenge is therefore not the disclosure interface, but the construction of a
@@ -785,17 +791,29 @@ infrastructure remains opaque.
 At the same time, the resulting estimates depend on modelling assumptions and system boundaries. A single request may involve multiple components such as caches, databases, queues, or external services. In our implementation, the system boundary is defined by the benchmarked deployment, which can include co-measured dependencies but cannot account for opaque third-party services unless their impact is provided separately. Similarly, caching and intermediaries such as CDNs may shift where energy is expended, raising questions about how cache hits should be attributed (e.g., origin versus edge). Another important choice concerns whether reported values reflect marginal energy above idle or include a share of baseline system energy. Both interpretations are useful for different purposes, but must be made explicit for the resulting values to be interpretable.
 
 More generally, the approach produces model-based estimates rather than direct measurements. The fitted models are calibrated on a reference system and may therefore differ from production deployments due to variations in hardware, virtualization, co-located load, or regional grid conditions. As a result, the disclosed values should be interpreted as context-dependent estimates rather than hardware-independent ground truth. In practice, this implies that models may require recalibration when deployment conditions change, and that their primary value lies in capturing relative differences between request classes rather than absolute precision.
-
-Within a resource reduction framing, the value of such observability lies in whether it can
-help reshape software practice toward operating within ecological constraints,
-rather than merely making existing growth-oriented services easier to optimise
-\cite{nardi2018computingwithinlimits}. Request-level estimates can support more
-deliberate choices such as caching, batching, prompt reduction, endpoint
-selection, or internal carbon budgeting. At the same time, disclosure alone is
-not sufficient: if deployed uncritically, the same mechanism could be used only
-for reporting or for shifting responsibility onto users while leaving demand,
-service design, and infrastructure growth untouched.
-
+ 
+The case for disclosure as a precondition for constraint rests on an
+asymmetry: in current HTTP-based systems, clients and operators can
+observe latency, cost, and throughput, but not environmental cost.
+This asymmetry is not neutral.  It systematically excludes ecological
+considerations from the concrete software decisions that collectively determine aggregate resource
+consumption.  Making per-request impact visible does not, by itself,
+reduce demand.  But it removes a structural barrier to doing so: one
+cannot budget, cap, or differentially price what one cannot measure at
+the relevant granularity.
+  
+At the same time, we recognise three risks.  First, per-request values
+may be instrumentalised for greenwashing: a provider could disclose
+small per-request numbers while obscuring that aggregate
+demand continues to grow unchecked. Disclosure of marginal cost without disclosure of total volume provides
+an incomplete and potentially misleading picture.  Second, the
+mechanism could shift responsibility asymmetrically: if providers
+disclose per-request impact but frame reduction as a client-side
+concern (e.g., ``reduce your prompt length''), the burden of adaptation
+falls on users while infrastructure growth remains unquestioned.
+Third, the act of quantification itself can naturalise the assumption
+that environmental impact is acceptable as long as it is accounted for.
+ 
 Finally, the approach does not explicitly quantify model error or uncertainty. Measurement noise, modelling choices, and unobserved factors can all influence the resulting estimates. While this limits the interpretability of absolute values, it does not invalidate their usefulness. Similar to other interface-level metrics such as latency or throughput, the estimates remain valuable as long as they provide stable and decision-relevant signals. The key contribution is therefore not exact metrological accuracy, but a reproducible and inspectable method for making the environmental implications of software visible at the interface where decisions are made.
 
 \section{Conclusion}
