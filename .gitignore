@@ -10,3 +10,4 @@ paper.pdf
 __pycache__/
 *.pyc
 code/logs/*.jsonl
+.codex

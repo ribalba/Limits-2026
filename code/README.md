@@ -52,15 +52,6 @@ Supported `energy_model.kind` values:
 - `linear`
 - `curve` (piecewise linear interpolation with `linear_tail` or `clamp` extrapolation)
 
-Response headers:
-- `X-Energy-Value`
-- `X-Grid-Intensity`
-- `X-Embodied-gCO2eq`
-- `X-Operational-gCO2eq`
-- `X-Request-Carbon-gCO2eq`
-- `X-Request-Time-Sec`
-- `X-Data-Size-Bytes`
-
 ## Benchmark scripts
 
 Shell scripts in `scripts/` call each endpoint `n` times (1..100000). Examples:
