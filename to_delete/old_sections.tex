@@ -145,7 +145,7 @@ This is an intentionally simple allocation that makes assumptions explicit. Alte
 \widehat{C}^{req}_e = \widehat{C}^{op}_e + \widehat{C}^{emb}_e.
 \]
 
-\subsection{Limitations}
+ \subsection{Limitations}
 \label{subsec:limitations}
 A natural objection is that per-request energy and emissions depend on deployment-specific factors such as hardware generation, power-management settings, co-located workloads, virtualization layers, and regional infrastructure. The same logical endpoint may therefore have different physical footprints in different environments. This objection is valid, but it does not invalidate the usefulness of per-endpoint disclosure. Rather, it clarifies what kind of claim such disclosure can and cannot make.
 
@@ -160,4 +160,126 @@ Third, \emph{deployment dependence can be managed through calibration rather tha
 Fourth, \emph{silence is often worse than approximate but qualified disclosure}. If the only acceptable value were a perfectly attributable real-time physical measurement, then most contemporary HTTP services could disclose nothing at all. Multi-tenancy, cloud opacity, and downstream fan-out would make request-level reporting practically impossible. A qualified estimate with explicit assumptions and uncertainty is therefore preferable to the absence of any per-request information.
 
 The key point is that request-level disclosure should be understood as an \emph{operational sustainability interface}, not as a claim of hardware-independent exactness. Its value lies in making environmental consequences visible in a form that software can use, compare, and optimise against. Hardware variance does not remove that value; it simply means that the disclosure must be interpreted as model-based, scoped, and context-dependent.
+
+
+%%% HTTP Server Extensions
+We implement impact disclosure at the HTTP server layer using an nginx module. The module first
+loads a JSON registry that maps URI paths (or location blocks) to endpoint energy models (1). It then extracts runtime observables from nginx variables (request processing time, payload sizes, and optionally token count supplied by the application) (2). Subsequently, it evaluates the corresponding model to estimate energy per request and derives operational and embodied \(\mathrm{CO_2e}\) (3) and then injects response headers and optionally writes structured logs for downstream accounting (4)).
+
+We used $ngx_http_js_module$ which uses a Java Script dialect called $njs$ to extend nginx. The selection was made since it requires no kernel patches and no cloud vendor energy APIs. We also implemented a helper script that automatically generates the json input for the nginx module. Thus, the data can be updated automatically.
+
+\subsection{Runtime behaviour of the header filter}
+The core runtime logic is implemented in \texttt{energy\_headers.js} as an nginx JavaScript header filter. At worker startup, the script normalises the preloaded JSON registry into an internal representation: route paths are canonicalised, constant and linear coefficients are stored directly, and curve-model support points are parsed and sorted once. This avoids repeated parsing work on the request path.
+
+For each response, the filter first resolves the current URI to a route entry in the compiled registry. It then reads the runtime inputs already available in nginx: upstream response time (falling back to total request time if needed) and a simple payload-size proxy derived from request and response byte counts. Token metadata is read only for routes whose model actually depends on prompt or generated tokens.
+
+Model evaluation is then a small deterministic arithmetic step. Constant routes return a fixed \(\mathrm{mWh}\) value, linear routes apply the configured coefficients, and curve routes perform piecewise-linear interpolation over the precompiled support points. The script finally converts predicted request energy into operational and embodied emissions using the per-route grid-intensity and embodied-rate values from the registry, and emits the four response headers \texttt{Request-Energy}, \texttt{Grid-Intensity}, \texttt{Request-Embodied-CO2e}, and \texttt{Request-SCI}. In the implementation, the two carbon headers are emitted in \(\mathrm{mgCO_2e}\).
+
+\subsection{JSON model registry schema}
+Listing~\ref{lst:json-registry} shows the registry format used by the nginx module. Energy values are expressed in \(\mathrm{mWh}\) to avoid underflow and to align with the prototype results in the outline. Grid intensity is expressed as \(\mathrm{gCO_2e/kWh}\); embodied rate is expressed as \(\mathrm{gCO_2e/s}\).
+
+\lstinputlisting[
+  float,
+  caption={JSON model registry schema.},
+  label={lst:json-registry}
+]{url_energy_pretty.json}
+
+
+\subsection{Header fields: names, semantics, and standardisation direction}
+
+The current standardisation discussion is valuable for defining a common disclosure surface, but a single aggregated sustainability field is too compact for the present stage of the problem. It can communicate \emph{a} number, yet it collapses the assumptions needed to interpret that number: whether it reflects energy or only emissions, whether embodied impacts are included, which grid-intensity value was used, and what system boundary the server assumed. For implementation, comparison, and critique, these dimensions must remain separable.
+
+We therefore use multiple response headers in this example. This is not primarily a claim that the final standard must expose many independent fields; rather, it is a practical design for making the underlying accounting choices explicit during experimentation. Separate headers allow clients, operators, and researchers to distinguish raw energy, conversion factors, operational emissions, and embodied allocations, and thus support more detailed analysis than a single pre-composed value.
+
+\textbf{Proposed standard header fields.} The following fields are intended as \emph{response} headers, scoped to the response-producing component (typically the origin server):
+\begin{itemize}
+  \item \texttt{Request-Energy}: Energy attributable to handling this request, in \(\mathrm{mWh}\).
+  \item \texttt{Grid-Intensity}: Grid intensity used for operational conversion, in \(\mathrm{gCO_2e/kWh}\).
+  \item \texttt{Request-Embodied-CO2e}: Embodied emissions allocated to this request, in \(\mathrm{mgCO_2e}\).
+  \item \texttt{Request-SCI}: Total emissions for this request, in \(\mathrm{mgCO_2e}\).
+\end{itemize}
+
+In Listing~\ref{lst:curl} one can see the exact headers that are returned for an example curl request. We have removed the cookie details to make the request easier to read.
+
+\begin{lstlisting}[float,language=bash,caption={Example response headers from the prototype nginx module (from the outline).},label={lst:curl}]
+$ curl -sS -D - -o /dev/null \
+  -X POST "http://localhost:8080/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}"
+
+HTTP/1.1 200 OK
+Server: nginx/1.25.5
+Date: Tue, 31 Mar 2026 07:10:41 GMT
+Content-Type: application/json
+Content-Length: 55
+Connection: keep-alive
+Vary: Cookie
+X-Content-Type-Options: nosniff
+Referrer-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin
+Set-Cookie: csrftoken=xxx; ...
+Set-Cookie: sessionid=xxx; ..
+(*@{\bfseries\ttfamily Request-Energy: 4.038}@*)
+(*@{\bfseries\ttfamily Grid-Intensity: 121.111}@*)
+(*@{\bfseries\ttfamily Request-Embodied-CO2e: 0.143}@*)
+(*@{\bfseries\ttfamily Request-SCI: 0.633}@*)
+\end{lstlisting}
+
+
+\subsection{Grid intensity handling.}
+Including grid intensity is important because request energy alone does not tell a client what the corresponding operational emissions are. In contemporary cloud and platform settings, the requester often does not know where a service instance is physically running, whether traffic is shifted between regions, or which electricity mix powers the underlying data centre at a given time. Exposing grid intensity therefore makes a crucial hidden assumption explicit: it links the measured or estimated energy demand of a request to the carbon characteristics of the electricity actually used. Without this additional parameter, two requests with identical energy use could appear equivalent even though they cause materially different emissions because they are served from different grids.
+
+Grid intensity can be (i) a deployment-time constant (e.g., location average), (ii) read from a periodically updated local file, or (iii) fetched from an internal endpoint. We recommend caching with a TTL aligned to the signal granularity (e.g., 5-60 minutes) to avoid network amplification and to ensure stable performance. Where time shifting or multi-region deployments exist, the intensity should be scoped to the execution region (and, ideally, to marginal intensity), this paper treats this as a future extension rather than a requirement.
+
+%%Evaluation
+\subsection{Evaluation goals}
+The goal of the evaluation is not to optimise one particular ToDo service, but to test the central claim of the paper: that machine-level benchmark measurements can be transformed into compact per-endpoint models that are executable at the HTTP boundary. We therefore evaluate the approach along three questions. First, can the controlled GMT measurements be converted into a complete registry covering heterogeneous endpoint types? Second, do the fitted models preserve the expected scaling behaviour of CRUD-style and AI-style requests? Third, does the resulting disclosure mechanism remain lightweight enough to be plausible for reverse-proxy deployment?
+
+Using the benchmark setup from Section~\ref{sec:measurement} and the automatic registry generator described in Section~\ref{sec:implementation}, we converted the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This step is already a substantive feasibility result: the benchmark data was sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the generated registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} are represented by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} is represented by a token-linear model.
+
+A further modelling choice concerns whether per-request energy should be derived from idle-subtracted measurements or from total machine energy observed during the benchmark interval. Idle subtraction is appropriate when the goal is to estimate the marginal energy attributable to request handling, because it removes the baseline consumption that would occur even without the workload and therefore helps isolate the request-dependent signal. By contrast, for provider-side accounting or allocation, it can be reasonable to retain total energy or to combine marginal request energy with a separate baseline-allocation term, since real systems consume energy even at low utilisation. In this paper, we use total machine energy for model derivation, but treat this as an explicit accounting assumption rather than a neutral measurement detail. Any deployment using the method should therefore disclose whether reported request values are marginal, average, or include a share of baseline system energy.
+
+The conversion step also yielded deployment-level carbon parameters shared across routes. For the measured system, the derived grid-intensity value was \(\num{121.111}\,\mathrm{gCO_2e/kWh}\), and the embodied allocation rate was approximately \(\num{0.001}\,\mathrm{gCO_2e/s}\). These values are not universal constants; they are artefacts of the measured deployment and are exactly the kind of assumptions that must be made explicit if HTTP-level disclosure is to be interpretable. This is important in the broader context of the paper: the prototype does not merely emit a final carbon number, but also exposes the conversion factors that produced it.
+
+The generated registry shows that the REST endpoints fall into clearly different behavioural classes. Authentication-related requests are close to constant cost. The fitted \texttt{/logout} model is only \SI{0.006}{mWh} per request, while \texttt{/login} is substantially larger at \SI{4.038}{mWh} because it includes credential verification and cyptographic session establishment. The \texttt{/done} endpoint is also close to constant scale, with a fitted value of \SI{0.085}{mWh} per request across the measured data conditions. This matches the intuition that these routes perform limited work whose cost is weakly dependent on request payload.
+
+The payload-dependent endpoints exhibit the opposite pattern. For \texttt{/createToDo}, the fitted curve is almost flat for small text-only requests, but grows sharply once file uploads become large. Across the measured conditions, a \texttt{/createToDo} request with a short text body required about \SI{0.064}{mWh}, whereas the \SI{5}{MB} attachment condition reached \SI{0.989}{mWh} per request, more than a fifteen-fold increase. The intermediate file sizes (\SI{1}{KB}, \SI{10}{KB}, \SI{100}{KB}, \SI{1}{MB}) produce a visible progression, confirming that the curve model captures a meaningful size effect rather than pure noise.
+
+For \texttt{/getToDos}, the fitted model scales with the size of the returned collection. The smallest measured response proxy was approximately \SI{49.4}{kB} and corresponded to \SI{0.072}{mWh} per request, while the largest condition reached about \SI{20.3}{MB} and \SI{0.553}{mWh}. This is a useful result for the paper's general argument: the runtime server does not need direct knowledge of database internals to disclose a differentiated impact estimate. Response-size observables available at the HTTP boundary are already sufficient to approximate the workload class.
+
+These results also highlight an important methodological point. The curve models are not intended to be perfect physical simulations of the endpoint implementations. Rather, they are compact interface-level abstractions that preserve the major decision-relevant differences between small and large requests. This is precisely the level of fidelity needed for protocol-level disclosure.
+
+\subsubsection{AI endpoint:} The AI endpoint is the clearest example of why application-supplied variables matter. If one looked only at the prompt-profile labels (\texttt{very-short}, \texttt{short}, \texttt{medium}, \texttt{long}, \texttt{very-long}), the measured runtimes are not strictly monotonic. In our run, the \texttt{medium} profile took longer than the \texttt{very-long} profile. On its face this could appear inconsistent with the expectation that longer prompts should consume more energy.
+
+The auxiliary benchmark output resolves this apparent contradiction. Prompt-token counts do increase monotonically across profiles, from roughly 20 tokens for \texttt{very-short} to about 1010 for \texttt{very-long}. Generated-token counts, however, vary substantially between runs and do not increase monotonically with prompt length. In this measurement, the average generated-token counts were approximately 46.4 (\texttt{very-short}), 505.8 (\texttt{short}), 600.7 (\texttt{medium}), 446.5 (\texttt{long}), and 518.4 (\texttt{very-long}). The non-monotonic response lengths explain why prompt labels alone are a poor runtime predictor.
+
+Using these token measurements, the generated registry fits \texttt{/ai} as
+\[
+\widehat{E}_{ai}(\tau^{prompt}, \tau^{gen}) =
+7.062 + 0.017 \cdot \tau^{prompt} + 0.483 \cdot \tau^{gen}
+\]
+with energy in \(\mathrm{mWh}\). The fitted coefficient for generated tokens is roughly 28 times larger than the coefficient for prompt tokens. This is consistent with the serving behaviour of decoder-style inference: prompt processing matters, but the dominant marginal work occurs during token generation. In terms of the broader paper argument, this is an important result. It shows that endpoint disclosure is most useful when the reverse proxy can consume semantically meaningful application metadata instead of relying only on generic HTTP features such as payload bytes or coarse prompt categories.
+
+\subsection{Overhead}
+The evaluation supports the low-overhead design goal of the paper not only structurally, but also through a direct paired comparison. We repeated the benchmark once with the nginx disclosure module disabled and once with it enabled, while leaving the remaining setup unchanged. Using the same machine-energy method as for model fitting and focusing on the conventional HTTP routes (\texttt{/login}, \texttt{/createToDo}, \texttt{/getToDos}, \texttt{/done}, \texttt{/deleteAllToDos}, and \texttt{/logout}), the request-weighted average energy increased from \SI{0.372}{mWh} to \SI{0.380}{mWh} per request. This corresponds to an overhead of \textbf{\SI{2.1}{\percent}}.
+
+At route level, the dominant CRUD-style endpoints changed only slightly: \texttt{/login} increased by \SI{0.1}{\percent}, \texttt{/createToDo} by \SI{2.4}{\percent}, \texttt{/done} by \SI{5.7}{\percent}, and \texttt{/getToDos} decreased by \SI{0.3}{\percent}. The larger relative movements for \texttt{/logout} and \texttt{/deleteAllToDos} occur on extremely small absolute energies and are therefore better interpreted as measurement noise than as a meaningful deployment penalty. In other words, for the ordinary web endpoints that dominate the request mix, the extra work of registry lookup and header emission stays close to the noise floor of the benchmark.
+
+The AI endpoint was not used as the primary overhead indicator for this comparison because the paired runs showed much larger run-to-run variation: the average idle-subtracted energy changed from \SI{42.3}{mWh} to \SI{217.1}{mWh} per request, while the mean runtime rose from about \SI{1.04}{s} to \SI{4.73}{s}. A more than five-fold increase of this kind cannot plausibly be attributed to emitting a few additional HTTP headers in nginx; it reflects variability in the inference workload itself. A dedicated repeated microbenchmark would therefore be needed to isolate the module cost for AI serving. Even with that caveat, the present comparison establishes the main point: heterogeneous endpoints can be benchmarked offline, reduced to compact executable models, and disclosed online at the HTTP boundary with only a small measured overhead for the conventional web routes.
+
+\section{Discussion}
+\subsection{Provider-side analytics without host telemetry}
+The same mechanism is useful not only for external disclosure, but also for internal provider-side analytics. Today, software producers often know request counts, latency, and cost, but still have little visibility into the energy or emissions associated with their own endpoints because hosting providers usually do not expose per-service power data. With our approach, the provider can benchmark the service offline, derive per-endpoint models, and then combine these models with routine HTTP logs such as request time, payload size, response size, and optional application-level variables such as token counts. A post-processing script can then estimate and aggregate energy or \(\mathrm{CO_2e}\) per URL, customer, feature, or time window.
+
+This is a substantial shift in observability: it gives software producers a practical way to estimate the resource implications of their software even when the hosting environment remains opaque. The resulting values are not exact representations of what happens inside a production data centre, because the model is calibrated on a reference setup and production systems differ in hardware, virtualization, co-located load, caching, regional grid mix, and opaque downstream services. However, the estimates are still useful as interface-level analytics that make relative endpoint behaviour visible and actionable.
+
+\subsection{Limitations and boundary selection}
+\textbf{Microservices and external dependencies.} A single request may touch caches, databases, queues, and external services. A per-endpoint model must specify boundaries: does it include downstream service energy? In our current implementation the boundary is the SUT deployment used in benchmarking, which can incorporate dependencies if co-measured, but cannot account for opaque third-party services unless their impact is provided separately.
+
+\textbf{Caching and intermediaries.} Responses may be served by CDNs or caches, altering where energy is expended. Future work should define semantics for cache hits (e.g., origin vs edge), and potentially include a \texttt{Impact-Scope} field.
+
+\textbf{Marginal vs average energy.} Lab measurements often estimate marginal energy above idle; in production, baseline energy is non-zero regardless of traffic. Both framings are useful: marginal energy supports optimisation; average energy supports allocation. The disclosure format should permit specifying which accounting mode is used.
+
+
+
 
