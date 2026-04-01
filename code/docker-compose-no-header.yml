@@ -30,6 +30,7 @@ services:
     #   - "8080:80"
     volumes:
       - ./nginx/nginx_no_header.conf:/etc/nginx/nginx.conf:ro
+      # - ./logs:/var/log/nginx
       # - media:/app/media:ro
       # - static:/app/static:ro
     depends_on:

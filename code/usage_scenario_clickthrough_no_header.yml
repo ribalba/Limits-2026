@@ -1,0 +1,21 @@
+name: EasyTodo Clickthrough Benchmark
+author: Didi Hoffmann <didi@green-coding.io>
+version: 0.1
+description: Repeats a realistic click-through path without response headers and writes structured nginx access logs for offline energy estimation.
+
+compose-file: !include docker-compose-no-header.yml
+
+flow:
+  - name: Reset nginx access log
+    container: nginx
+    commands:
+      - type: console
+        command: echo '' > /var/log/nginx/easytodo_access.jsonl
+
+  - name: Clickthrough Text 1000
+    container: bench
+    commands:
+      - type: console
+        command: bash /app/scripts/clickthrough_bench.sh -n 100 -u testuser -p testuser -b http://nginx -t 1000 -f 0
+        read-notes-stdout: true
+        log-stdout: true
