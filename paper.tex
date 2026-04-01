@@ -27,8 +27,6 @@
 \usepackage{makecell}
 
 
-
-
 % --- Listings setup (avoid minted for portability) ---
 \lstdefinelanguage{json}{
   basicstyle=\ttfamily\footnotesize,
@@ -180,11 +178,9 @@ emissions across shared infrastructure and multi-tenant systems
 per-request values in production environments.
 
 Recent work has explored HTTP as a surface for communicating sustainability
-information. Martin proposes a \texttt{Carbon-Emissions-Scope-2} response header
+information. Martin proposes a "Carbon-Emissions-Scope-2" response header
 \cite{martin-http-carbon-emissions-scope-2-00}, and more recent drafts define
 structured sustainability headers \cite{besleaga-green-sustainability-header-00}.
-These efforts focus on what information to disclose at the protocol layer and
-how to encode it.
 
 Existing work therefore establishes the need for modelling, demonstrates
 workload-level variation, and defines potential disclosure interfaces.
@@ -385,19 +381,26 @@ in the same way, provided they can be made available to the reverse proxy as
 request-scoped metadata (e.g., via internal headers or server variables).
 
 \textbf{Registry generation procedure.}
-In the current prototype, model-family assignment is deterministic rather than
-found by an automatic search over candidate families. Concretely,
-\texttt{/login}, \texttt{/logout}, \texttt{/done}, and
+In the current prototype, model-family assignment is based on
+endpoint-specific workload-scaling benchmarks rather than on an automatic
+search over candidate families. For each endpoint, we constructed a benchmark
+that progressively increased the relevant workload and measured how the energy
+profile changed. For example, for \texttt{/login} we issued between 1 and
+1000 calls in order to determine whether per-request energy remained
+stable or varied with increasing load\footnote{\url{https://metrics.green-coding.io/stats.html?id=6c40a5b8-79b7-4372-a1c4-3ae7185451d2}}.
+We applied the same procedure to all endpoints and then selected the model family that best matched the observed
+behavior. Concretely, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and
 \texttt{/deleteAllToDos} are represented as constant models whose value is the
 mean measured per-request energy across their benchmark conditions.
 \texttt{/createToDo} and \texttt{/getToDos} are represented as curve models:
 the measured support points are retained, duplicate \(x\)-values are averaged,
 and runtime estimates are obtained by piecewise linear interpolation between
 the resulting points. For \texttt{/ai}, we fit a least-squares linear model
-over an intercept plus prompt-token and generated-token counts. This explicit route-to-family
-mapping keeps the generated registry simple and inspectable, but it also means
-that the current prototype does not yet perform automatic family selection or
-uncertainty-aware fitting.
+over an intercept plus prompt-token and generated-token counts. This
+benchmark-driven route-to-family mapping keeps the generated registry simple
+and inspectable, but it also means that the current prototype does not yet
+perform automatic family selection or uncertainty-aware fitting. Future work
+will include a script that automatically generates a model registry from GMT benchmark data.
 
 
 \subsection{Operational and embodied emissions}
@@ -444,26 +447,37 @@ This formulation provides a simple and transparent allocation scheme. Alternativ
 
 \subsection{Limitations}
 \label{subsec:limitations}
-Per-request energy and emission estimates depend on deployment-specific factors such as hardware generation, power-management settings, co-located workloads, virtualization layers, and regional infrastructure. As a result, the same logical endpoint may exhibit different physical footprints across environments. This observation does not invalidate the approach, but clarifies the scope and interpretation of the reported values.
+However, the approach is subject to limitations. Per-request energy and
+emission estimates depend on deployment-specific factors such as hardware
+generation, power-management settings, co-located workloads, virtualization
+layers, and regional infrastructure. As a result, the same logical endpoint
+may exhibit different physical footprints across environments. The estimates
+produced by our model should therefore be understood as interface-level
+abstractions derived from controlled measurements, explicit assumptions, and
+runtime-observable features. They are not intended to provide exact physical
+attribution for individual requests, but to expose a consistent and actionable
+signal at the boundary where software decisions are made.
 
-The estimates produced by our model should be understood as interface-level abstractions derived from controlled measurements, explicit assumptions, and runtime-observable features. They are not intended to provide exact physical attribution for individual requests, but to expose a consistent and actionable signal at the boundary where software decisions are made.
+A further limitation follows from the dependence on the measurement setup. If
+the deployment environment differs significantly from the calibration
+environment, prediction error may increase and deployment-specific effects may
+not be fully captured. In addition, the model reflects only those factors that
+are observable or explicitly included in the feature set. Unobserved effects,
+such as resource contention, background load, or hardware-specific
+optimisations, may influence energy consumption but are not represented, which
+can introduce systematic error.
 
-However, the approach is subject to limitations. A first limitation follows
-from the dependence on the measurement setup. If the deployment environment
-differs significantly from the calibration environment, prediction error may
-increase and deployment-specific effects may not be fully captured. In
-addition, the model reflects only those factors that are observable or
-explicitly included in the feature set. Unobserved effects, such as resource
-contention, background load, or hardware-specific optimisations, may influence
-energy consumption but are not represented, which can introduce systematic
-error. The current prototype also assigns model families by endpoint semantics
-rather than by automatic model selection, and it does not yet emit uncertainty
-intervals alongside point estimates. The approach therefore abstracts over
-dynamic system behaviour, so variations in load, scheduling, or co-tenancy may
-lead to request-level fluctuations that are not captured even when the feature
-inputs remain unchanged. Finally, as workloads, system configurations, or
+The current prototype also selects model
+families from endpoint-specific workload benchmarks rather than by automatic
+model selection, and it does not yet emit uncertainty intervals alongside
+point estimates. The approach therefore abstracts over dynamic system
+behaviour, so variations in load, scheduling, or co-tenancy may lead to
+request-level fluctuations that are not captured even when the feature inputs
+remain unchanged.
+
+Finally, as workloads, system configurations, or
 infrastructure evolve over time, model parameters may become less accurate,
-making periodic recalibration necessary.
+making periodic recalibration necessary. It is therefore necessary to automate this step so that the model registry can be updated on new software releases or hardware changes.
 
 Despite these limitations, the approach provides a structured and reproducible abstraction with explicitly defined inputs, assumptions, and system boundaries. The resulting estimates should therefore be interpreted as context-dependent and primarily suited for relative comparison and decision support at the software interface.
 
@@ -485,14 +499,13 @@ We used the GMT ``ML/AI Profiling'' profile on a server-class system with the fo
   \item OS: Ubuntu 24.04 (NOP Linux) \cite{greenmetricstool}
 \end{itemize}
 
-Turbo boost and dynamic frequency scaling were left enabled to reflect typical deployment conditions. The system runs NOP Linux, a minimal environment with non-essential processes disabled to reduce measurement noise.
-
+Turbo boost and dynamic frequency scaling were left enabled to reflect typical deployment conditions.
 \subsection{Measurement Practice}
 To obtain stable energy measurements, we followed the Green Coding best practices for controlled benchmarking \cite{greencoding_bestpractices}. These practices stress that software-energy measurements are sensitive to noise and should therefore be performed under controlled conditions, with temperature effects, idle baselines, and run-to-run variance taken into account.
 
-Concretely, we ran the service under test (SUT) on an isolated machine with minimal background activity. We disabled unnecessary processes, and avoided interactive use of the system during measurements. Before sampling, we warmed up the SUT to reach a steady state. We then recorded an idle baseline for a comparable interval. During the experiments, we varied one workload factor at a time, such as payload size or token count, and repeated each condition often enough to make the signal distinguishable from measurement noise. As recommended in the Green Coding documentation, the exact number of repetitions depended on the variance and expected signal strength of the endpoint under test.
+Concretely, we ran the service under test (SUT) on an isolated machine running NOP Linux, a minimal environment with non-essential processes disabled to reduce measurement noise. Before sampling, we warmed up the SUT to reach a steady state. We then recorded an idle baseline for a comparable interval. During the experiments, we varied one workload factor at a time, such as payload size or token count, and repeated each condition often enough to make the signal distinguishable from measurement noise. As recommended in the Green Coding documentation, the exact number of repetitions depended on the variance and expected signal strength of the endpoint under test.
 
-The whole test suite was executed 10 times. All measurements are available under \href{https://metrics.green-coding.io/runs.html?&uri=https%3A%2F%2Fgithub.com%2Fribalba%2FLimits-2026&show_archived=true&show_other_users=true}{https://metrics.green-coding.io/runs.html}
+The whole test suite was executed 10 times. All measurements are available under \url{https://tinyurl.com/fprne67y}.
 
 \subsection{Benchmark Application Setup}
 We implemented a minimal REST-style ToDo application in Python that serves HTTP
@@ -522,10 +535,6 @@ The endpoints are described in Table~\ref{tab:endpoints}.
 
 We deliberately excluded HTTPS from the measurements to avoid entangling endpoint energy with TLS handshake and encryption overhead. In deployments where HTTPS is mandatory (typical on the public internet), TLS overhead can be accounted for as (i) a separate endpoint-independent constant term, or (ii) a distinct model variant keyed by protocol configuration.
 
-We created an automated benchmark script that calls each endpoint repeatedly
-under varying workload conditions, as summarised in
-Table~\ref{tab:endpoints}.
-
 
 \subsection{Benchmarking}
 As introduced in Section~\ref{sec:methods}, the prototype uses constant,
@@ -553,7 +562,7 @@ Prior work suggests that generated token count is a practical proxy for LLM infe
 %\subsection{Deriving per-request energy labels from GMT exports}
 \subsection{Per-Request Energy Labels}
 
-We derive per-request energy labels \(E\) (in \(\mathrm{mWh}\)) from machine-level energy measurements collected during benchmarking\footnote{\href{https://metrics.green-coding.io/compare.html?ids=4d0b0afa-a994-446e-b10c-a9afdcd0cfb4,22947267-6714-4fd2-9261-e86f2e17dea6,69192a65-366f-4298-ae44-2a3dbd1913d2,b73289cb-c090-4190-ab2e-223e676452db,ada88f63-0e14-4947-8b60-ea172dab3aa2,0c20ec45-3c70-4444-b75f-3a5ee3bd679d,813bbcab-8a24-4209-8ec4-d748561eba75,2b8cb442-f989-49b4-ba6a-bfa6b2094c38,b08d8b4d-c2a1-4c72-8033-eea52b9fb3a6,aac19717-b9b9-4454-a75c-89ff6e67d0d4}{https://metrics.green-coding.io/compare.html}}. For each condition, we compute:
+We derive per-request energy labels \(E\) (in \(\mathrm{mWh}\)) from machine-level energy measurements collected during benchmarking\footnote{\url{https://tinyurl.com/mryh2wm8}}. For each condition, we compute:
 \[
 E = \frac{E_{\text{machine}}}{n},
 \]
@@ -638,7 +647,7 @@ The computed energy and emissions values are exposed at the HTTP boundary using 
   \item \texttt{Request-Embodied-CO2e}: Embodied emissions allocated to the request, in \(\mathrm{mgCO_2e}\).
   \item \texttt{Request-SCI}: Total emissions for the request, in \(\mathrm{mgCO_2e}\).
 \end{itemize}
-These fields represent one possible design for exposing per-request sustainability information and are not intended as a proposal for standardisation. The separation of components is chosen to make modelling assumptions explicit during experimentation and evaluation, rather than to prescribe a fixed interface. Listing~\ref{lst:curl} shows a \texttt{curl}-based \texttt{POST} request to the \texttt{/login} endpoint together with the corresponding HTTP response produced by the prototype \texttt{nginx} module. Alongside standard response metadata such as status, content type, and cookies, the listing includes the four sustainability-related headers introduced above. This illustrates how per-request energy and carbon information is disclosed at the HTTP boundary in a concrete interaction.
+These fields represent one possible design for exposing per-request sustainability information and are not intended as a proposal for standardisation. The separation of components is chosen to make modelling assumptions explicit during experimentation and evaluation, rather than to prescribe a fixed interface. Listing~\ref{lst:curl} shows a \texttt{curl}-based \texttt{POST} request to the \texttt{/login} endpoint together with the corresponding HTTP response produced by the prototype \texttt{nginx} module. This listing includes the four sustainability-related headers introduced above. We have removed data that is not relevant for this example like the date, keep-alive information, etc. This illustrates how per-request energy and carbon information is disclosed at the HTTP boundary in a concrete interaction.
 
 \begin{lstlisting}[float,language=bash,caption={Example response headers emitted by the prototype nginx module},label={lst:curl}]
 $ curl -sS -D - -o /dev/null \
@@ -648,14 +657,7 @@ $ curl -sS -D - -o /dev/null \
 
 HTTP/1.1 200 OK
 Server: nginx/1.25.5
-Date: Tue, 31 Mar 2026 07:10:41 GMT
-Content-Type: application/json
-Content-Length: 55
-Connection: keep-alive
-Vary: Cookie
-X-Content-Type-Options: nosniff
-Referrer-Policy: same-origin
-Cross-Origin-Opener-Policy: same-origin
+...
 Set-Cookie: csrftoken=xxx; ...
 Set-Cookie: sessionid=xxx; ..
 (*@{\bfseries\ttfamily Request-Energy: 4.038}@*)
@@ -684,13 +686,14 @@ conditions.
 
 \subsection{Model Derivation and Parametrisation}
 
-Using the benchmark setup from Section~\ref{sec:measurement} and the registry generator described in Section~\ref{sec:implementation}, we convert the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This demonstrates that the benchmark data is sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the resulting registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} by a token-linear model.
+Using the benchmark setup from Section~\ref{sec:measurement} and the registry generator described in Section~\ref{sec:methods}, we convert the Green Metrics Tool export into the JSON registry shown in Listing~\ref{lst:json-registry}. This demonstrates that the benchmark data is sufficient to instantiate all three model families introduced in Section~\ref{sec:methods}. In the resulting registry, \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} are represented by constant models; \texttt{/createToDo} and \texttt{/getToDos} by piecewise curve models over runtime-visible payload proxies; and \texttt{/ai} by a token-linear model.
 
 A key modelling choice concerns whether per-request energy is derived from idle-subtracted measurements or from total machine energy observed during the benchmark interval. Idle subtraction isolates the request-dependent signal, while total energy includes baseline consumption that may be relevant for provider-side accounting. In this work, we use total machine energy for model derivation and treat this as an explicit accounting assumption. Deployments using the method should therefore disclose whether reported values are marginal, average, or include baseline contributions.
 
 The conversion step also yields deployment-specific carbon parameters shared across routes. For the measured system, grid intensity is \(\num{121.111}\,\mathrm{gCO_2e/kWh}\) and the embodied allocation rate is approximately \(\num{0.001}\,\mathrm{gCO_2e/s}\). These values are not universal constants but reflect the measured environment. Exposing them alongside request-level estimates ensures that the resulting disclosures remain interpretable.
 
 \begin{table}[h]
+\small
 \centering
 \caption{Endpoint benchmark conditions and derived per-request energy labels.}
 \label{tab:energy}
@@ -700,6 +703,9 @@ The conversion step also yields deployment-specific carbon parameters shared acr
 \midrule
 \texttt{/login}                              & 100 & 4.038 \\
 \texttt{/logout}                             & 100 & 0.006 \\
+\texttt{/done}                               & 100 & 0.085 \\
+\texttt{/deleteAllToDos}                     & 100 & 2.835 \\
+\midrule
 \texttt{/getToDos} (100 items)               & 100 & 0.072 \\
 \texttt{/getToDos} (1\,000 items)            & 100 & 0.112 \\
 \texttt{/getToDos} (10\,000 items)           & 100 & 0.125 \\
@@ -708,7 +714,6 @@ The conversion step also yields deployment-specific carbon parameters shared acr
 \texttt{/createToDo} (text, 1\,000 chars)    & 100 & 0.079 \\
 \texttt{/createToDo} (text, 10\,000 chars)   & 100 & 0.035 \\
 \texttt{/createToDo} (text, 100\,000 chars)  & 100 & 0.096 \\
-\texttt{/done}                               & 100 & 0.085 \\
 \texttt{/createToDo} (file, 1\,KB)           & 100 & 0.058 \\
 \texttt{/createToDo} (file, 10\,KB)          & 100 & 0.061 \\
 \texttt{/createToDo} (file, 100\,KB)         & 100 & 0.080 \\
@@ -727,7 +732,7 @@ The conversion step also yields deployment-specific carbon parameters shared acr
 \subsection{Endpoint behaviour}
 We evaluate the fitted models across different endpoint classes to assess whether they preserve the expected workload-dependent behaviour. In particular, we distinguish between conventional CRUD-style endpoints and AI inference workloads, which exhibit fundamentally different scaling characteristics.
 
-\subsubsection{CRUD endpoints:} \
+\subsubsection{CRUD endpoints}
 The generated registry shows that the REST endpoints fall into distinct behavioural classes. Authentication-related requests are close to constant cost. The fitted \texttt{/logout} model is only \SI{0.006}{mWh} per request, while \texttt{/login} is substantially larger at \SI{4.038}{mWh}, reflecting additional work such as credential verification and cryptographic session establishment. The \texttt{/done} endpoint is also effectively constant, with a fitted value of \SI{0.085}{mWh} per request across all measured conditions.
 
 In contrast, the payload-dependent endpoints exhibit clear scaling behaviour. For \texttt{/createToDo}, the fitted curve remains nearly flat for small text-only requests but increases sharply once file uploads become large. A request with a short text body requires about \SI{0.064}{mWh}, while the \SI{5}{MB} attachment condition reaches \SI{0.989}{mWh}, corresponding to more than a fifteen-fold increase. Intermediate file sizes (\SI{1}{KB}, \SI{10}{KB}, \SI{100}{KB}, \SI{1}{MB}) produce a consistent progression, indicating that the curve model captures a meaningful size effect rather than measurement noise.
@@ -750,27 +755,101 @@ The coefficients make the relative contribution of the two factors explicit. The
 
 This result illustrates a key point of the paper: accurate per-request disclosure requires semantically meaningful application-level features. Generic HTTP-level observables such as payload size or prompt labels are insufficient to capture the dominant cost drivers of AI inference workloads.
 
-\subsection{Trace-based validation}
-To assess how well the fitted endpoint models generalise beyond the isolated benchmark conditions used for calibration, we executed an additional no-header validation run that repeated a realistic user click-through path 100 times\footnote{https://metrics.green-coding.io/stats.html?id=fca8c396-7591-4f16-9fd5-c3f87c2a424f}. Each iteration performed the sequence \texttt{/login} \(\rightarrow\) \texttt{/deleteAllToDos} \(\rightarrow\) \texttt{/createToDo} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/done} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/logout}, resulting in 700 HTTP requests in total. The run was measured once with Green Metrics Tool to obtain the machine-level reference energy and, independently, nginx access logs were replayed offline through the derived registry to obtain the model-based estimate.
+\subsection{Click-Path Validation}
+To assess how well the fitted endpoint models generalise beyond the isolated benchmark conditions used for calibration, we executed an additional no-header validation run that repeated a realistic user click-through path 100 times\footnote{https://metrics.green-coding.io/stats.html?id=fca8c396-7591-4f16-9fd5-c3f87c2a424f}. Each iteration performed the sequence \texttt{/login} \(\rightarrow\) \texttt{/deleteAllToDos} \(\rightarrow\) \texttt{/createToDo} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/done} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/logout}, resulting in 700 HTTP requests in total. The total run was measured ten times with Green Metrics Tool to obtain the machine-level reference energy and, independently, nginx access logs were replayed offline through the derived registry to obtain the model-based estimate.
 
-We ran ten validation runs, and the GMT reported a total machine energy of
-\SI{597.18}{mWh} (\(\pm\)\,\SI{0.74}{\percent}, average \(\pm\) standard deviation over all runs)\footnote{\href{https://metrics.green-coding.io/compare.html?ids=30ed795e-04ff-4555-82a3-863cbbdac0c3,072645a6-0dac-4952-a7f1-0f191cfbfa6e,17fee139-3d17-4610-8d46-449e7c500914,64c35e72-d728-42cb-a342-3e7807a6c006,9798dbb1-327e-4d9c-91e5-69719e021ca4,224b368c-63f0-4db8-9df0-d631e90ac6b8,fc6ed1c7-aff7-4fee-9bb7-7c2a917324c1,afc9898c-ec48-468b-8ddb-9a99def2d35a,691ccd74-fcd4-40c1-9781-740887661da0,a7642738-4bfa-4f42-b1be-06120e909f3f}{https://metrics.green-coding.io/compare.html}}, while the offline log replay produced an estimated total of \SI{611.101}{mWh}. This corresponds to an absolute deviation of
+The GMT reported a total machine energy of
+\SI{597.18}{mWh} (\(\pm\)\,\SI{0.74}{\percent}, average \(\pm\) standard deviation over all runs)\footnote{\url{https://tinyurl.com/5t42rame}}, while the offline log replay produced an estimated total of \SI{611.101}{mWh}. This corresponds to an absolute deviation of
 \SI{13.921}{mWh}, or \SI{2.33}{\percent} relative to the measured total. For an
 endpoint model derived from separate controlled measurements and then evaluated
 only from runtime-visible log features, this level of agreement is encouraging:
 the estimate preserves the correct order of magnitude and remains close enough
 to support relative comparisons and aggregate observability.
 
-\subsection{Overhead}
-We evaluate the runtime overhead of the disclosure mechanism using a paired comparison. The benchmark was executed once with the nginx module disabled and once with it enabled, while keeping the remaining setup unchanged. For the conventional HTTP routes (\texttt{/login}, \texttt{/createToDo}, \texttt{/getToDos}, \texttt{/done}, \texttt{/deleteAllToDos}, and \texttt{/logout}), the request-weighted average energy increased from \SI{0.372}{mWh} to \SI{0.380}{mWh} per request, corresponding to an overhead of \textbf{\SI{2.1}{\percent}}.
+\subsection{Nginx Plugin Overhead}
+We evaluate the runtime overhead of the disclosure mechanism using ten repeated-run comparisons with the nginx module disabled\footnote{\url{https://tinyurl.com/3he27b8w}} and enabled\footnote{\url{https://tinyurl.com/2rrn7bfb}}, while keeping the remaining setup unchanged. Across the complete benchmark run, the compare export reports mean machine energy increasing from $5325.07 \pm 0.48\% \mathrm{mWh}$ to $5349.55 \pm 0.50\% \mathrm{mWh}$, corresponding to an overall overhead of \SI{0.46}{\percent}. This aggregate value is derived from the full-run \texttt{[RUNTIME]} entry in the comparison export and is not repeated in the per-endpoint tables below.
 
-At route level, the dominant endpoints show only minor changes: \texttt{/login} increases by \SI{0.1}{\percent}, \texttt{/createToDo} by \SI{2.4}{\percent}, \texttt{/done} by \SI{5.7}{\percent}, and \texttt{/getToDos} decreases by \SI{0.3}{\percent}. Larger relative changes for \texttt{/logout} and \texttt{/deleteAllToDos} occur at very small absolute energy levels and are therefore best interpreted as measurement noise. Overall, the additional work of model evaluation and header emission remains close to the noise floor for typical web endpoints.
+At route level, the current data shows small effects for the conventional web endpoints (Tables~\ref{tab:compare-constant-endpoints}--\ref{tab:compare-file-loads}). In Table~\ref{tab:compare-constant-endpoints}, \texttt{/login} does not show a measurable change; the mean energy changes from $678.59 \pm 0.88\% \mathrm{mWh}$ to $676.31 \pm 0.95\% \mathrm{mWh}$, which is well within the observed run-to-run variation. The same table shows \texttt{/logout} increasing by \SI{10.9}{\percent}, but at only about \SI{15}{mWh} per block and with standard deviations around \SI{18}{\percent}, this is better interpreted as noise than as a stable overhead signal. In Table~\ref{tab:compare-text-loads}, the per-condition differences remain modest and mixed: \texttt{/getToDos} ranges from \SI{-3.8}{\percent} to \SI{+2.9}{\percent}, and \texttt{/done} from \SI{-4.2}{\percent} to \SI{+10.1}{\percent}. For \texttt{/createToDo}, Table~\ref{tab:compare-text-loads} shows text-condition changes between \SI{+4.0}{\percent} and \SI{+8.9}{\percent}, while Table~\ref{tab:compare-file-loads} shows file-upload changes between \SI{+0.1}{\percent} and \SI{+11.1}{\percent}. The largest relative increases occur on small absolute benchmark blocks, whereas the larger and more practically relevant upload cases (\SI{1}{MB} and \SI{5}{MB}) change by only \SI{0.2}{\percent} and \SI{0.1}{\percent}, respectively.
 
-For the AI endpoint, the paired runs exhibit substantially higher variability: the average idle-subtracted energy changes from \SI{42.3}{mWh} to \SI{217.1}{mWh} per request, and runtime increases from \SI{1.04}{s} to \SI{4.73}{s}. Such variation cannot plausibly be attributed to the disclosure mechanism and reflects inherent variability in the inference workload. A dedicated microbenchmark would be required to isolate overhead for AI serving.
+We do not include the AI endpoint in the overhead analysis below, because the repeated comparison runs did not yield a measurable overhead signal. Across the five prompt profiles, mean machine energy differences remained within \SI{-0.5}{\percent} to \SI{+0.7}{\percent}, and per-request runtime changes stayed between approximately \SI{0.0}{\percent} and \SI{0.3}{\percent}. Within this dataset, any effect of header emission remains below the natural variability of the inference workload.
 
-These results indicate that per-request model evaluation and disclosure can be
-integrated into the HTTP server with low overhead for conventional web
-workloads.
+Taken together, these results indicate that per-request model evaluation and disclosure can be integrated into the HTTP server with low overhead for both the conventional web routes studied here and, within the limits of the present comparison, the AI endpoint as well.
+
+\begin{table}[h]
+\centering
+\scriptsize
+\caption{Measured energy comparison for constant-cost authentication endpoints. Values show mean machine energy in mWh for each benchmark block.}
+\label{tab:compare-constant-endpoints}
+\begin{tabular}{llrr}
+\toprule
+Class & Variant & Login & Logout \\
+\midrule
+Constant & No Header & 678.59 $\pm$ 0.88\% & 14.42 $\pm$ 18.44\% \\
+ & Header & 676.31 $\pm$ 0.95\% & 15.99 $\pm$ 17.26\% \\
+ & $\Delta$ & -0.3\% & +10.9\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\scriptsize
+\centering
+\caption{Measured energy comparison for text-based workload steps. Values show mean machine energy in mWh for each benchmark block.}
+\label{tab:compare-text-loads}
+\begin{tabular}{llrrr}
+\toprule
+Load & Variant & CreateToDo & GetToDos & Done \\
+\midrule
+100 & No Header & 37.68 $\pm$ 5.74\% & 20.99 $\pm$ 5.49\% & 34.35 $\pm$ 14.57\% \\
+ & Header & 39.33 $\pm$ 8.94\% & 20.21 $\pm$ 7.29\% & 37.82 $\pm$ 9.90\% \\
+ & $\Delta$ & +4.4\% & -3.8\% & +10.1\% \\
+\midrule
+1000 & No Header & 39.63 $\pm$ 15.15\% & 21.31 $\pm$ 7.39\% & 34.95 $\pm$ 12.54\% \\
+ & Header & 43.16 $\pm$ 10.45\% & 21.71 $\pm$ 6.67\% & 33.49 $\pm$ 13.69\% \\
+ & $\Delta$ & +8.9\% & +1.9\% & -4.2\% \\
+\midrule
+10000 & No Header & 42.48 $\pm$ 10.15\% & 30.26 $\pm$ 4.15\% & 39.41 $\pm$ 9.45\% \\
+ & Header & 44.20 $\pm$ 7.06\% & 31.14 $\pm$ 4.23\% & 38.84 $\pm$ 5.06\% \\
+ & $\Delta$ & +4.0\% & +2.9\% & -1.5\% \\
+\midrule
+100000 & No Header & 46.05 $\pm$ 7.32\% & 131.92 $\pm$ 2.37\% & 45.58 $\pm$ 10.27\% \\
+ & Header & 48.82 $\pm$ 7.45\% & 131.35 $\pm$ 1.90\% & 49.35 $\pm$ 8.72\% \\
+ & $\Delta$ & +6.0\% & -0.4\% & +8.3\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\scriptsize
+\centering
+\caption{Measured energy comparison for file-upload workload steps. Values show mean machine energy in mWh for each benchmark block.}
+\label{tab:compare-file-loads}
+\begin{tabular}{llr}
+\toprule
+File size & Variant & CreateToDo \\
+\midrule
+1KB & No Header & 39.98 $\pm$ 10.67\% \\
+ & Header & 41.42 $\pm$ 15.37\% \\
+ & $\Delta$ & +3.6\% \\
+\midrule
+10KB & No Header & 36.27 $\pm$ 9.13\% \\
+ & Header & 40.32 $\pm$ 10.89\% \\
+ & $\Delta$ & +11.1\% \\
+\midrule
+100KB & No Header & 41.10 $\pm$ 10.31\% \\
+ & Header & 44.73 $\pm$ 10.08\% \\
+ & $\Delta$ & +8.8\% \\
+\midrule
+1MB & No Header & 68.66 $\pm$ 3.17\% \\
+ & Header & 68.78 $\pm$ 3.64\% \\
+ & $\Delta$ & +0.2\% \\
+\midrule
+5MB & No Header & 232.39 $\pm$ 0.80\% \\
+ & Header & 232.62 $\pm$ 0.97\% \\
+ & $\Delta$ & +0.1\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 
 \section{Discussion}
