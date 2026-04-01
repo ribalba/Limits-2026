@@ -59,6 +59,12 @@ def normalize_path(path: str | None) -> str:
     return normalized or "/"
 
 
+def normalize_method(method: Any) -> str:
+    if method in (None, ""):
+        return ""
+    return str(method).upper()
+
+
 def parse_time_seconds(value: Any) -> float:
     if value in (None, "", "-"):
         return 0.0
@@ -102,6 +108,7 @@ def point_pair(raw_point: Any) -> tuple[float, float] | None:
 def compile_route_config(route_config: dict[str, Any]) -> dict[str, Any]:
     model = route_config.get("energy_model")
     compiled: dict[str, Any] = {
+        "filter": None,
         "embodied_rate": to_number(route_config.get("embodied_rate_gCO2e_per_s"), 0.0),
         "grid_intensity": to_number(route_config.get("grid_intensity_gCO2e_per_kWh"), 0.0),
         "kind": "constant",
@@ -116,6 +123,18 @@ def compile_route_config(route_config: dict[str, Any]) -> dict[str, Any]:
         "curve_points": [],
         "curve_clamp": False,
     }
+    raw_filter = route_config.get("filter")
+    if isinstance(raw_filter, dict):
+        if isinstance(raw_filter.get("method"), str) and raw_filter.get("method"):
+            compiled["filter"] = {"method": normalize_method(raw_filter["method"])}
+        elif isinstance(raw_filter.get("methods"), list):
+            methods = [
+                normalize_method(method)
+                for method in raw_filter["methods"]
+                if normalize_method(method)
+            ]
+            if methods:
+                compiled["filter"] = {"methods": methods}
 
     if isinstance(model, (int, float)):
         compiled["constant_energy"] = clamp_non_negative(float(model))
@@ -156,13 +175,46 @@ def compile_route_config(route_config: dict[str, Any]) -> dict[str, Any]:
     return compiled
 
 
-def compile_registry(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    compiled: dict[str, dict[str, Any]] = {}
+def compile_registry(registry: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    compiled: dict[str, list[dict[str, Any]]] = {}
     for route, route_config in registry.items():
-        if not isinstance(route_config, dict):
-            continue
-        compiled[normalize_path(route)] = compile_route_config(route_config)
+        variants: list[dict[str, Any]] = []
+        if isinstance(route_config, dict):
+            variants = [compile_route_config(route_config)]
+        elif isinstance(route_config, list):
+            variants = [
+                compile_route_config(item)
+                for item in route_config
+                if isinstance(item, dict)
+            ]
+        if variants:
+            compiled[normalize_path(route)] = variants
     return compiled
+
+
+def filter_matches(filter_spec: dict[str, Any] | None, request_method: str) -> bool:
+    if not filter_spec:
+        return False
+    if "method" in filter_spec:
+        return filter_spec["method"] == request_method
+    if "methods" in filter_spec:
+        return request_method in filter_spec["methods"]
+    return False
+
+
+def select_route_config(
+    route_configs: list[dict[str, Any]] | None, request_method: str
+) -> dict[str, Any] | None:
+    if not route_configs:
+        return None
+
+    fallback = None
+    for route_config in route_configs:
+        if not route_config.get("filter") and fallback is None:
+            fallback = route_config
+        if filter_matches(route_config.get("filter"), request_method):
+            return route_config
+    return fallback
 
 
 def feature_value(
@@ -337,7 +389,8 @@ def summarize(log_path: Path, registry_path: Path) -> dict[str, Any]:
             continue
 
         route = normalize_path(entry.get("uri") or entry.get("request_uri"))
-        route_config = compiled_registry.get(route)
+        request_method = normalize_method(entry.get("method"))
+        route_config = select_route_config(compiled_registry.get(route), request_method)
         if route_config is None:
             skipped_requests += 1
             unknown_routes[route] = unknown_routes.get(route, 0) + 1

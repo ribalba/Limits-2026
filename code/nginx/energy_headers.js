@@ -30,6 +30,13 @@ function normalizePath(path) {
     return path;
 }
 
+function normalizeMethod(method) {
+    if (!method) {
+        return "";
+    }
+    return String(method).toUpperCase();
+}
+
 function parseTimeSeconds(value) {
     var text;
     var comma;
@@ -170,6 +177,7 @@ function compileCurve(model) {
 
 function compileRouteConfig(routeConfig) {
     var compiled = {
+        filter: null,
         embodiedRate: pickNumber(routeConfig, "embodied_rate_gCO2e_per_s", "embodied", "emboddied", 0),
         embodiedMgPerS: 0,
         gridIntensity: pickNumber(routeConfig, "grid_intensity_gCO2e_per_kWh", "grid_intensity", null, 0),
@@ -189,6 +197,19 @@ function compileRouteConfig(routeConfig) {
     };
     var model = routeConfig ? routeConfig.energy_model : null;
     var kind;
+    var filter = routeConfig ? routeConfig.filter : null;
+
+    if (filter && typeof filter === "object") {
+        if (typeof filter.method === "string" && filter.method) {
+            compiled.filter = { method: normalizeMethod(filter.method) };
+        } else if (filter.methods && filter.methods.length) {
+            compiled.filter = {
+                methods: filter.methods.map(function (method) {
+                    return normalizeMethod(method);
+                })
+            };
+        }
+    }
 
     compiled.embodiedMgPerS = compiled.embodiedRate * 1000;
     compiled.gridIntensityHeader = formatHeaderValue(compiled.gridIntensity);
@@ -246,15 +267,65 @@ function compileEnergyConfig() {
     var compiled = {};
     var route;
     var normalized;
+    var routeValue;
+    var variants;
+    var i;
 
     for (route in energy_config) {
         if (Object.prototype.hasOwnProperty.call(energy_config, route)) {
             normalized = normalizePath(route);
-            compiled[normalized] = compileRouteConfig(energy_config[route]);
+            routeValue = energy_config[route];
+            variants = Array.isArray(routeValue) ? routeValue : [routeValue];
+            compiled[normalized] = [];
+            for (i = 0; i < variants.length; i++) {
+                compiled[normalized].push(compileRouteConfig(variants[i]));
+            }
         }
     }
 
     return compiled;
+}
+
+function filterMatches(filter, requestMethod) {
+    var idx;
+
+    if (!filter) {
+        return false;
+    }
+
+    if (filter.method) {
+        return filter.method === requestMethod;
+    }
+
+    if (filter.methods && filter.methods.length) {
+        for (idx = 0; idx < filter.methods.length; idx++) {
+            if (filter.methods[idx] === requestMethod) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function selectRouteConfig(routeConfigs, requestMethod) {
+    var idx;
+    var fallback = null;
+
+    if (!routeConfigs || !routeConfigs.length) {
+        return null;
+    }
+
+    for (idx = 0; idx < routeConfigs.length; idx++) {
+        if (!routeConfigs[idx].filter && fallback === null) {
+            fallback = routeConfigs[idx];
+        }
+        if (filterMatches(routeConfigs[idx].filter, requestMethod)) {
+            return routeConfigs[idx];
+        }
+    }
+
+    return fallback;
 }
 
 function linearInterpolate(x, x0, y0, x1, y1) {
@@ -370,7 +441,9 @@ var compiled_energy_config = compileEnergyConfig();
 
 function addCarbonHeaders(r) {
     var path = normalizePath(r.variables.uri || r.uri || "/");
-    var endpointConfig = compiled_energy_config[path];
+    var requestMethod = normalizeMethod(r.method || r.variables.request_method);
+    var routeConfigs = compiled_energy_config[path];
+    var endpointConfig = selectRouteConfig(routeConfigs, requestMethod);
     var timeSec;
     var dataSize;
     var promptTokens = 0;
