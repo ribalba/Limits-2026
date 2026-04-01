@@ -547,7 +547,7 @@ Prior work suggests that generated token count is a practical proxy for LLM infe
 %\subsection{Deriving per-request energy labels from GMT exports}
 \subsection{Per-Request Energy Labels}
 
-We derive per-request energy labels \(E\) (in \(\mathrm{mWh}\)) from machine-level energy measurements collected during benchmarking. For each condition, we compute:
+We derive per-request energy labels \(E\) (in \(\mathrm{mWh}\)) from machine-level energy measurements collected during benchmarking\footnote{\href{https://metrics.green-coding.io/compare.html?ids=4d0b0afa-a994-446e-b10c-a9afdcd0cfb4,22947267-6714-4fd2-9261-e86f2e17dea6,69192a65-366f-4298-ae44-2a3dbd1913d2,b73289cb-c090-4190-ab2e-223e676452db,ada88f63-0e14-4947-8b60-ea172dab3aa2,0c20ec45-3c70-4444-b75f-3a5ee3bd679d,813bbcab-8a24-4209-8ec4-d748561eba75,2b8cb442-f989-49b4-ba6a-bfa6b2094c38,b08d8b4d-c2a1-4c72-8033-eea52b9fb3a6,aac19717-b9b9-4454-a75c-89ff6e67d0d4}{https://metrics.green-coding.io/compare.html}}. For each condition, we compute:
 \[
 E = \frac{E_{\text{machine}}}{n},
 \]
@@ -557,9 +557,6 @@ This yields an average per-request estimate that approximates the energy attribu
 
 We verify that energy varies consistently with the controlled workload parameter under input sweeps, indicating that the derived labels capture the intended endpoint behaviour.
 
-
-
-%\subsection{Mapping to runtime-observable model features}
 \subsection{Runtime-Observable Features}
 For each measured request, we associate the energy label \(E\) with features that are available (or can be made available at low cost) at the HTTP server boundary:
 \begin{itemize}
@@ -570,8 +567,6 @@ For each measured request, we associate the energy label \(E\) with features tha
   \item \textbf{URL-parameter-derived features \(q\):} selected information derived from the request URI, such as the presence of specific query parameters, total query-string length, parameter count, or whitelisted numeric values (e.g., pagination limit). We use derived features rather than raw query strings in order to avoid unnecessary sparsity and high-cardinality model inputs.
   \item \textbf{Token count \(\tau\):} for AI inference, prompt and generated token counts exposed by the application.
 \end{itemize}
-
-
 
 The resulting dataset is a collection of tuples \((e, x, E)\) per endpoint \(e\), where \(x\) is the vector of relevant features. We then fit the constant, linear, and piecewise curve models described in Section~\ref{sec:methods}, and export the fitted parameters as will be described in the next section.
 
@@ -753,37 +748,12 @@ This result illustrates a key point of the paper: accurate per-request disclosur
 To assess how well the fitted endpoint models generalise beyond the isolated benchmark conditions used for calibration, we executed an additional no-header validation run that repeated a realistic user click-through path 100 times\footnote{https://metrics.green-coding.io/stats.html?id=fca8c396-7591-4f16-9fd5-c3f87c2a424f}. Each iteration performed the sequence \texttt{/login} \(\rightarrow\) \texttt{/deleteAllToDos} \(\rightarrow\) \texttt{/createToDo} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/done} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/logout}, resulting in 700 HTTP requests in total. The run was measured once with Green Metrics Tool to obtain the machine-level reference energy and, independently, nginx access logs were replayed offline through the derived registry to obtain the model-based estimate.
 
 We ran ten validation runs, and the GMT reported a total machine energy of
-\SI{597.18}{mWh} (\(\pm\)\,\SI{0.74}{\percent}, average \(\pm\) standard deviation over all runs)\footnote{\href{https://metrics.green-coding.io/compare.html?ids=30ed795e-04ff-4555-82a3-863cbbdac0c3,072645a6-0dac-4952-a7f1-0f191cfbfa6e,17fee139-3d17-4610-8d46-449e7c500914,64c35e72-d728-42cb-a342-3e7807a6c006,9798dbb1-327e-4d9c-91e5-69719e021ca4,224b368c-63f0-4db8-9df0-d631e90ac6b8,fc6ed1c7-aff7-4fee-9bb7-7c2a917324c1,afc9898c-ec48-468b-8ddb-9a99def2d35a,691ccd74-fcd4-40c1-9781-740887661da0,a7642738-4bfa-4f42-b1be-06120e909f3f&force_mode=}{https://metrics.green-coding.io/compare.html}}, while the offline log replay produced an estimated total of \SI{611.101}{mWh} as seen in Listing~\ref{lst:energy-calculation}. This corresponds to an absolute deviation of
+\SI{597.18}{mWh} (\(\pm\)\,\SI{0.74}{\percent}, average \(\pm\) standard deviation over all runs)\footnote{\href{https://metrics.green-coding.io/compare.html?ids=30ed795e-04ff-4555-82a3-863cbbdac0c3,072645a6-0dac-4952-a7f1-0f191cfbfa6e,17fee139-3d17-4610-8d46-449e7c500914,64c35e72-d728-42cb-a342-3e7807a6c006,9798dbb1-327e-4d9c-91e5-69719e021ca4,224b368c-63f0-4db8-9df0-d631e90ac6b8,fc6ed1c7-aff7-4fee-9bb7-7c2a917324c1,afc9898c-ec48-468b-8ddb-9a99def2d35a,691ccd74-fcd4-40c1-9781-740887661da0,a7642738-4bfa-4f42-b1be-06120e909f3f}{https://metrics.green-coding.io/compare.html}}, while the offline log replay produced an estimated total of \SI{611.101}{mWh}. This corresponds to an absolute deviation of
 \SI{13.921}{mWh}, or \SI{2.33}{\percent} relative to the measured total. For an
 endpoint model derived from separate controlled measurements and then evaluated
 only from runtime-visible log features, this level of agreement is encouraging:
 the estimate preserves the correct order of magnitude and remains close enough
-to support relative comparisons and aggregate observability. At the same time,
-this result comes from a single independent workload trace and should therefore
-be interpreted as evidence of feasibility rather than as a complete error bound
-for future deployments.
-
-\begin{lstlisting}[float,language=json,caption={Endpoint calculatio output},label={lst:energy-calculation}]
-$ ./code/scripts/calculate_nginx_log_energy.py -r url_energy_no_headers.json code/logs/easytodo_access.jsonl
-Processed requests: 700
-...
-Total energy: 611.101 mWh
-Operational carbon: 74.011 mgCO2e
-Embodied carbon: 19.981 mgCO2e
-Total carbon: 93.992 mgCO2e
-
-Per route:
-  /createToDo: requests=100 energy_mWh=6.98 total_mgCO2e=1.775
-  /deleteAllToDos: requests=100 energy_mWh=181.113 total_mgCO2e=22.83
-  /done: requests=100 energy_mWh=8.059 total_mgCO2e=1.901
-  /getToDos: requests=200 energy_mWh=10.682 total_mgCO2e=2.267
-  /login: requests=100 energy_mWh=403.34 total_mgCO2e=64.205
-  /logout: requests=100 energy_mWh=0.927 total_mgCO2e=1.013
-\end{lstlisting}
-
-
-The largest contribution in the replayed estimate is \texttt{/login}, followed by \texttt{/deleteAllToDos}. In particular, \texttt{/deleteAllToDos} is modelled as a constant endpoint based on calibration runs where cleanup happened after large benchmark batches. In the click-through validation, however, the same endpoint usually deletes only zero or one item per iteration. This mismatch between calibration workload and validation workload introduces a systematic bias even though the URI is the same.
-
+to support relative comparisons and aggregate observability.
 
 \subsection{Overhead}
 We evaluate the runtime overhead of the disclosure mechanism using a paired comparison. The benchmark was executed once with the nginx module disabled and once with it enabled, while keeping the remaining setup unchanged. For the conventional HTTP routes (\texttt{/login}, \texttt{/createToDo}, \texttt{/getToDos}, \texttt{/done}, \texttt{/deleteAllToDos}, and \texttt{/logout}), the request-weighted average energy increased from \SI{0.372}{mWh} to \SI{0.380}{mWh} per request, corresponding to an overhead of \textbf{\SI{2.1}{\percent}}.
