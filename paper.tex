@@ -791,7 +791,7 @@ infrastructure remains opaque.
 At the same time, the resulting estimates depend on modelling assumptions and system boundaries. A single request may involve multiple components such as caches, databases, queues, or external services. In our implementation, the system boundary is defined by the benchmarked deployment, which can include co-measured dependencies but cannot account for opaque third-party services unless their impact is provided separately. Similarly, caching and intermediaries such as CDNs may shift where energy is expended, raising questions about how cache hits should be attributed (e.g., origin versus edge). Another important choice concerns whether reported values reflect marginal energy above idle or include a share of baseline system energy. Both interpretations are useful for different purposes, but must be made explicit for the resulting values to be interpretable.
 
 More generally, the approach produces model-based estimates rather than direct measurements. The fitted models are calibrated on a reference system and may therefore differ from production deployments due to variations in hardware, virtualization, co-located load, or regional grid conditions. As a result, the disclosed values should be interpreted as context-dependent estimates rather than hardware-independent ground truth. In practice, this implies that models may require recalibration when deployment conditions change, and that their primary value lies in capturing relative differences between request classes rather than absolute precision.
- 
+
 The case for disclosure as a precondition for constraint rests on an
 asymmetry: in current HTTP-based systems, clients and operators can
 observe latency, cost, and throughput, but not environmental cost.
@@ -801,7 +801,7 @@ consumption.  Making per-request impact visible does not, by itself,
 reduce demand.  But it removes a structural barrier to doing so: one
 cannot budget, cap, or differentially price what one cannot measure at
 the relevant granularity.
-  
+
 At the same time, we recognise three risks.  First, per-request values
 may be instrumentalised for greenwashing: a provider could disclose
 small per-request numbers while obscuring that aggregate
@@ -813,13 +813,19 @@ concern (e.g., ``reduce your prompt length''), the burden of adaptation
 falls on users while infrastructure growth remains unquestioned.
 Third, the act of quantification itself can naturalise the assumption
 that environmental impact is acceptable as long as it is accounted for.
- 
+
 Finally, the approach does not explicitly quantify model error or uncertainty. Measurement noise, modelling choices, and unobserved factors can all influence the resulting estimates. While this limits the interpretability of absolute values, it does not invalidate their usefulness. Similar to other interface-level metrics such as latency or throughput, the estimates remain valuable as long as they provide stable and decision-relevant signals. The key contribution is therefore not exact metrological accuracy, but a reproducible and inspectable method for making the environmental implications of software visible at the interface where decisions are made.
 
 \section{Conclusion}
 This paper argued that the main missing piece in HTTP sustainability disclosure is not only header-field semantics, but a practical method for generating credible per-request values. We showed that controlled machine-level measurements can be transformed into compact endpoint models, stored in a JSON registry, and evaluated online at the HTTP boundary by an nginx-based prototype. The evaluation demonstrates that this approach can represent heterogeneous endpoint classes, including both conventional CRUD routes and an AI inference endpoint, while remaining operationally simple enough for reverse-proxy deployment.
 
 The current prototype still leaves room for systems-level optimisation. Although the measured overhead on the conventional web routes is small, it is not zero. An important next step is therefore to re-implement the runtime header-generation path as a native nginx extension in C. Doing so would remove the remaining JavaScript interpretation overhead, reduce per-request allocations further, and allow tighter integration with nginx's internal request-processing structures.
+
+\section*{Availability}
+All source code for the prototype, benchmarks, and supporting components is
+freely available at \url{https://github.com/ribalba/Limits-2026/tree/main/code}.
+All measurement runs referenced in this work are available at
+\url{https://metrics.green-coding.io/runs.html}.
 
 
 \bibliographystyle{ACM-Reference-Format}
