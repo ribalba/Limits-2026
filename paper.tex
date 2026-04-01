@@ -30,6 +30,31 @@
 
 
 % --- Listings setup (avoid minted for portability) ---
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\footnotesize,
+  showstringspaces=false,
+  breaklines=true,
+  morestring=[b]",
+  literate=
+   *{0}{{0}}{1}
+    {1}{{1}}{1}
+    {2}{{2}}{1}
+    {3}{{3}}{1}
+    {4}{{4}}{1}
+    {5}{{5}}{1}
+    {6}{{6}}{1}
+    {7}{{7}}{1}
+    {8}{{8}}{1}
+    {9}{{9}}{1}
+    {:}{{:}}{1}
+    {,}{{,}}{1}
+    {\{}{{\{}}{1}
+    {\}}{{\}}}{1}
+    {[}{{[}}{1}
+    {]}{{]}}{1},
+  morekeywords={true,false,null}
+}
+
 \lstset{
   basicstyle=\ttfamily\footnotesize,
   breaklines=true,
@@ -91,6 +116,15 @@ clients could incorporate it into decisions such as retry behaviour, batching,
 or prompt design.
 
 HTTP is a natural disclosure surface, and prior work has proposed response headers for communicating carbon information~\cite{martin-http-carbon-emissions-scope-2-00,httpwg-admin-issue-52-carbon-emissions,ietf-http-wg-mailinglist-carbon-header-thread,besleaga-green-sustainability-header-00}. However, these efforts focus on \emph{what} to disclose, not on how to derive per-request values in practice.
+
+From a resource reduction perspective, however, better disclosure is valuable only insofar
+as it helps computing adapt to ecological and material constraints rather than
+simply optimise the status quo more precisely. Nardi et al.\ argue that
+computing research should support transitions toward well-being within
+planetary limits and make growth-oriented assumptions visible and contestable
+\cite{nardi2018computingwithinlimits}. In that sense, request-level
+sustainability metadata is not an end in itself, but a transitional mechanism
+for making software demand legible at the interface where it is created.
 
 In production systems, per-request energy and emissions are not directly observable. Attribution is complicated by multi-tenancy, virtualization, and
 request fan-out, while hardware telemetry is coarse or unavailable. The core challenge is therefore not the disclosure interface, but the construction of a
@@ -232,10 +266,12 @@ the HTTP boundary.
 
 We first define endpoint-level energy models based on runtime-observable
 features such as request duration, transferred bytes, and request-specific
-parameters in Section \ref{subsec:model}. We then describe how predicted energy values are translated into
-operational and embodied emissions using grid-intensity and allocation
-parameters in Section \ref{subsec:emissions}. Finally, we discuss the limitations of this approach, including its
-dependence on modelling assumptions and deployment-specific calibration in Section \ref{subsec:limitations}.
+parameters in Section~\ref{subsec:model}. We then describe how predicted
+energy values are translated into operational and embodied emissions using
+grid-intensity and allocation parameters in
+Section~\ref{subsec:emissions}. Finally, we discuss the limitations of this
+approach, including its dependence on modelling assumptions and
+deployment-specific calibration in Section~\ref{subsec:limitations}.
 
 
 \subsection{Endpoint energy models}
@@ -342,6 +378,21 @@ are one instance of this pattern; other domain-specific variables may be used
 in the same way, provided they can be made available to the reverse proxy as
 request-scoped metadata (e.g., via internal headers or server variables).
 
+\textbf{Registry generation procedure.}
+In the current prototype, model-family assignment is deterministic rather than
+found by an automatic search over candidate families. Concretely,
+\texttt{/login}, \texttt{/logout}, \texttt{/done}, and
+\texttt{/deleteAllToDos} are represented as constant models whose value is the
+mean measured per-request energy across their benchmark conditions.
+\texttt{/createToDo} and \texttt{/getToDos} are represented as curve models:
+the measured support points are retained, duplicate \(x\)-values are averaged,
+and runtime estimates are obtained by piecewise linear interpolation between
+the resulting points. For \texttt{/ai}, we fit a least-squares linear model
+over an intercept plus prompt-token and generated-token counts. This explicit route-to-family
+mapping keeps the generated registry simple and inspectable, but it also means
+that the current prototype does not yet perform automatic family selection or
+uncertainty-aware fitting.
+
 
 \subsection{Operational and embodied emissions}
 \label{subsec:emissions}
@@ -373,6 +424,16 @@ Finally, total per-request emissions are defined as the sum of operational and e
 \widehat{C}_e = \widehat{C}^{op}_e + \widehat{C}^{emb}_e.
 \]
 
+The prototype outputs should be read under four explicit accounting
+assumptions. First, benchmark labels are average per-request values obtained by
+dividing measured machine energy by the number of homogeneous requests in a
+benchmark block. Second, the registry used in this paper is derived from total
+machine energy rather than idle-subtracted energy. Third, HTTPS/TLS overhead is
+excluded from the current calibration. Fourth, embodied carbon is allocated as
+a constant time-based rate. The reported numbers are therefore
+deployment-specific estimates under a stated accounting model rather than
+protocol-independent constants.
+
 This formulation provides a simple and transparent allocation scheme. Alternative approaches, such as utilisation-weighted or capacity-based allocation, can be substituted depending on the deployment context \cite{iso14040,iso14044,ghgproduct,gsf-sci}.
 
 \subsection{Limitations}
@@ -381,7 +442,22 @@ Per-request energy and emission estimates depend on deployment-specific factors 
 
 The estimates produced by our model should be understood as interface-level abstractions derived from controlled measurements, explicit assumptions, and runtime-observable features. They are not intended to provide exact physical attribution for individual requests, but to expose a consistent and actionable signal at the boundary where software decisions are made.
 
-However, the approach is subject to limitations. A first limitation follows from the dependence on the measurement setup. If the deployment environment differs significantly from the calibration environment, prediction error may increase and deployment-specific effects may not be fully captured. In addition, the model reflects only those factors that are observable or explicitly included in the feature set. Unobserved effects, such as resource contention, background load, or hardware-specific optimisations, may influence energy consumption but are not represented, which can introduce systematic error. The approach also abstracts over dynamic system behaviour, so variations in load, scheduling, or co-tenancy may lead to request-level fluctuations that are not captured even when the feature inputs remain unchanged. Finally, as workloads, system configurations, or infrastructure evolve over time, model parameters may become less accurate, making periodic recalibration necessary.
+However, the approach is subject to limitations. A first limitation follows
+from the dependence on the measurement setup. If the deployment environment
+differs significantly from the calibration environment, prediction error may
+increase and deployment-specific effects may not be fully captured. In
+addition, the model reflects only those factors that are observable or
+explicitly included in the feature set. Unobserved effects, such as resource
+contention, background load, or hardware-specific optimisations, may influence
+energy consumption but are not represented, which can introduce systematic
+error. The current prototype also assigns model families by endpoint semantics
+rather than by automatic model selection, and it does not yet emit uncertainty
+intervals alongside point estimates. The approach therefore abstracts over
+dynamic system behaviour, so variations in load, scheduling, or co-tenancy may
+lead to request-level fluctuations that are not captured even when the feature
+inputs remain unchanged. Finally, as workloads, system configurations, or
+infrastructure evolve over time, model parameters may become less accurate,
+making periodic recalibration necessary.
 
 Despite these limitations, the approach provides a structured and reproducible abstraction with explicitly defined inputs, assumptions, and system boundaries. The resulting estimates should therefore be interpreted as context-dependent and primarily suited for relative comparison and decision support at the software interface.
 
@@ -413,7 +489,15 @@ Concretely, we ran the service under test (SUT) on an isolated machine with mini
 The whole test suite was executed 10 times. All measurements are available under \href{https://metrics.green-coding.io/runs.html?&uri=https%3A%2F%2Fgithub.com%2Fribalba%2FLimits-2026&show_archived=true&show_other_users=true}{https://metrics.green-coding.io/runs.html}
 
 \subsection{Benchmark Application Setup}
-We implemented a minimal REST-style ToDo application in Python that serves HTTP requests using an SQLite as the backend database. A user can login and logout, create todo items that have a tile, description and can have a file attached. The user can also retrieve all of her todos and mark such as done. Further there is an LLM endpoint that can complete sentences. The application and benchmark harness are publicly available \cite{easytodo}. While SQLite is a simple dependency, the GMT harness supports measuring more complex multi-service deployments. We use this application to cover a range of endpoint behaviours. The endpoints are described in Table~\ref{tab:endpints}.
+We implemented a minimal REST-style ToDo application in Python that serves HTTP
+requests using SQLite as the backend database. A user can log in and log out,
+create ToDo items with a title, text, and optional file attachment, retrieve
+all ToDo items, and mark individual items as done. In addition, the application
+provides an LLM endpoint for sentence completion. The application and benchmark
+harness are publicly available \cite{easytodo}. While SQLite is a simple
+dependency, the GMT harness supports measuring more complex multi-service
+deployments. We use this application to cover a range of endpoint behaviours.
+The endpoints are described in Table~\ref{tab:endpoints}.
 
 \begin{table}
     \centering
@@ -426,17 +510,24 @@ We implemented a minimal REST-style ToDo application in Python that serves HTTP 
         /deleteAllToDos & Deletes all the todos of the user \\
         /ai & Given a text sends it to an LLM for autocompletion and returns the ai response \\
     \end{tabular}
-    \caption{Rest Endpoints}
-    \label{tab:endpints}
+    \caption{REST endpoints used in the benchmark application}
+    \label{tab:endpoints}
 \end{table}
 
 We deliberately excluded HTTPS from the measurements to avoid entangling endpoint energy with TLS handshake and encryption overhead. In deployments where HTTPS is mandatory (typical on the public internet), TLS overhead can be accounted for as (i) a separate endpoint-independent constant term, or (ii) a distinct model variant keyed by protocol configuration.
 
-We created an automated benchmark script that calls each endpoint a number of times with varying data sizes as can be seen in table \ref{tab:endpints}.
+We created an automated benchmark script that calls each endpoint repeatedly
+under varying workload conditions, as summarised in
+Table~\ref{tab:endpoints}.
 
 
 \subsection{Benchmarking}
-As previously discussed there are three types of models, constant, dependent and curve. Each endpoint was benchmarked with its own workload script designed to expose the endpoint's expected scaling factors. Stateful endpoints requiring authentication were benchmarked with a pre-acquired session cookie. The cookie was captured once and reused across runs to avoid repeatedly measuring login overhead when benchmarking other endpoints.
+As introduced in Section~\ref{sec:methods}, the prototype uses constant,
+linear, and curve models. Each endpoint was benchmarked with its own workload
+script designed to expose the endpoint's expected scaling factors. Stateful
+endpoints requiring authentication were benchmarked with a pre-acquired session
+cookie. The cookie was captured once and reused across runs to avoid repeatedly
+measuring login overhead when benchmarking other endpoints.
 
 We do not use one uniform repetition count for all endpoints. Instead, we choose the number of calls per benchmark condition according to the expected signal strength. For very small endpoints such as \texttt{/login} and \texttt{/logout}, single-request energy values are too small relative to machine-level measurement noise, so we execute 100 calls per condition and divide the measured machine energy by the number of calls. We use the same 100-call batch size for the CRUD-style web endpoints \texttt{/createToDo} and \texttt{/getToDos}. For \texttt{/done}, each benchmark condition first creates 100 ToDo items and then marks each of them once, yielding 100 \texttt{/done} requests for that condition. For \texttt{/ai}, we use 10 requests per prompt profile because each inference call is much longer and already produces a clearly measurable energy signal.
 
@@ -498,7 +589,7 @@ To minimise overhead, the registry is normalised once at worker initialisation. 
 The JSON registry defines how endpoint-specific energy models and their parameters are represented for runtime evaluation. At the top level, the registry is a map from endpoint identifiers (e.g., URI paths or location blocks) to per-endpoint configuration objects. Each such object contains an \texttt{energy\_model} plus the shared parameters needed later for emission calculations, namely grid intensity and the embodied-allocation rate. The \texttt{energy\_model} itself is a tagged structure whose fields depend on the chosen model family: constant models store a single value, linear models store an intercept and coefficients, and curve models store support points together with interpolation rules. The registry format also allows multiple model variants for the same URL path, distinguished by an optional \texttt{filter} object. This is useful when, for example, \texttt{GET} and \texttt{POST} requests share the same endpoint path but exhibit different behaviour and should therefore be matched to different energy models. Listing~\ref{lst:json-registry} does not show the full generated registry, but a compact excerpt with representative instances of the model families used in the prototype.
 
 
-\begin{lstlisting}[float,language=bash,caption={Excerpt from the JSON model registry with representative endpoint entries},label={lst:json-registry}]
+\begin{lstlisting}[float,language=json,caption={Excerpt from the JSON model registry with representative endpoint entries},label={lst:json-registry}]
 {
   "/ai": {
     "filter": { "method": "POST" },
@@ -548,7 +639,7 @@ The computed energy and emissions values are exposed at the HTTP boundary using 
 \end{itemize}
 These fields represent one possible design for exposing per-request sustainability information and are not intended as a proposal for standardisation. The separation of components is chosen to make modelling assumptions explicit during experimentation and evaluation, rather than to prescribe a fixed interface. Listing~\ref{lst:curl} shows a \texttt{curl}-based \texttt{POST} request to the \texttt{/login} endpoint together with the corresponding HTTP response produced by the prototype \texttt{nginx} module. Alongside standard response metadata such as status, content type, and cookies, the listing includes the four sustainability-related headers introduced above. This illustrates how per-request energy and carbon information is disclosed at the HTTP boundary in a concrete interaction.
 
-\begin{lstlisting}[float,language=bash,caption={Example response headers from the prototype nginx module (from the outline).},label={lst:curl}]
+\begin{lstlisting}[float,language=bash,caption={Example response headers emitted by the prototype nginx module},label={lst:curl}]
 $ curl -sS -D - -o /dev/null \
   -X POST "http://localhost:8080/login" \
   -H "Content-Type: application/json" \
@@ -578,6 +669,16 @@ Set-Cookie: sessionid=xxx; ..
 \label{sec:evaluation}
 
 We evaluate the proposed approach using the controlled benchmark setup described in Section~\ref{sec:measurement} and the HTTP-based implementation introduced in Section~\ref{sec:implementation}. The evaluation focuses on whether per-request energy models derived from machine-level measurements can be constructed, interpreted, and executed at the HTTP boundary under realistic conditions. In particular, we examine whether benchmark measurements can be converted into a complete model registry across heterogeneous endpoints, whether the fitted models preserve expected workload-dependent behaviour for both CRUD-style and AI-style requests, and whether the resulting disclosure mechanism remains lightweight enough for reverse-proxy deployment.
+
+The evaluation is intentionally framed as a feasibility study rather than a
+full predictive-accuracy benchmark. The benchmark suite was executed ten times
+to stabilise the underlying measurements, after which we inspect the derived
+model parameters, perform one trace-based replay validation against an
+independent click-through workload, and compare paired runs with and without
+header emission for overhead. The results therefore support claims about
+operational plausibility and order-of-magnitude agreement, but not yet a
+comprehensive statistical characterisation of model error across deployment
+conditions.
 
 
 \subsection{Model Derivation and Parametrisation}
@@ -648,10 +749,38 @@ The coefficients make the relative contribution of the two factors explicit. The
 
 This result illustrates a key point of the paper: accurate per-request disclosure requires semantically meaningful application-level features. Generic HTTP-level observables such as payload size or prompt labels are insufficient to capture the dominant cost drivers of AI inference workloads.
 
-\subsection{Real world validation}
+\subsection{Trace-based validation}
 To assess how well the fitted endpoint models generalise beyond the isolated benchmark conditions used for calibration, we executed an additional no-header validation run that repeated a realistic user click-through path 100 times\footnote{https://metrics.green-coding.io/stats.html?id=fca8c396-7591-4f16-9fd5-c3f87c2a424f}. Each iteration performed the sequence \texttt{/login} \(\rightarrow\) \texttt{/deleteAllToDos} \(\rightarrow\) \texttt{/createToDo} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/done} \(\rightarrow\) \texttt{/getToDos} \(\rightarrow\) \texttt{/logout}, resulting in 700 HTTP requests in total. The run was measured once with Green Metrics Tool to obtain the machine-level reference energy and, independently, nginx access logs were replayed offline through the derived registry to obtain the model-based estimate.
 
-For this validation run, GMT reported a total machine energy of \SI{590.15}{mWh}, while the offline log replay produced an estimated total of \SI{611.101}{mWh}. This corresponds to an absolute deviation of \SI{20.951}{mWh}, or \SI{3.55}{\percent} relative to the measured total. For an endpoint model derived from separate controlled measurements and then evaluated only from runtime-visible log features, this level of agreement is encouraging: the estimate preserves the correct order of magnitude and remains close enough to support relative comparisons and aggregate observability.
+We ran ten validation runs, and the GMT reported a total machine energy of
+\SI{597.18}{mWh} (\(\pm\)\,\SI{0.74}{\percent}, average \(\pm\) standard deviation over all runs)\footnote{\href{https://metrics.green-coding.io/compare.html?ids=30ed795e-04ff-4555-82a3-863cbbdac0c3,072645a6-0dac-4952-a7f1-0f191cfbfa6e,17fee139-3d17-4610-8d46-449e7c500914,64c35e72-d728-42cb-a342-3e7807a6c006,9798dbb1-327e-4d9c-91e5-69719e021ca4,224b368c-63f0-4db8-9df0-d631e90ac6b8,fc6ed1c7-aff7-4fee-9bb7-7c2a917324c1,afc9898c-ec48-468b-8ddb-9a99def2d35a,691ccd74-fcd4-40c1-9781-740887661da0,a7642738-4bfa-4f42-b1be-06120e909f3f&force_mode=}{https://metrics.green-coding.io/compare.html}}, while the offline log replay produced an estimated total of \SI{611.101}{mWh} as seen in Listing~\ref{lst:energy-calculation}. This corresponds to an absolute deviation of
+\SI{13.921}{mWh}, or \SI{2.33}{\percent} relative to the measured total. For an
+endpoint model derived from separate controlled measurements and then evaluated
+only from runtime-visible log features, this level of agreement is encouraging:
+the estimate preserves the correct order of magnitude and remains close enough
+to support relative comparisons and aggregate observability. At the same time,
+this result comes from a single independent workload trace and should therefore
+be interpreted as evidence of feasibility rather than as a complete error bound
+for future deployments.
+
+\begin{lstlisting}[float,language=json,caption={Endpoint calculatio output},label={lst:energy-calculation}]
+$ ./code/scripts/calculate_nginx_log_energy.py -r url_energy_no_headers.json code/logs/easytodo_access.jsonl
+Processed requests: 700
+...
+Total energy: 611.101 mWh
+Operational carbon: 74.011 mgCO2e
+Embodied carbon: 19.981 mgCO2e
+Total carbon: 93.992 mgCO2e
+
+Per route:
+  /createToDo: requests=100 energy_mWh=6.98 total_mgCO2e=1.775
+  /deleteAllToDos: requests=100 energy_mWh=181.113 total_mgCO2e=22.83
+  /done: requests=100 energy_mWh=8.059 total_mgCO2e=1.901
+  /getToDos: requests=200 energy_mWh=10.682 total_mgCO2e=2.267
+  /login: requests=100 energy_mWh=403.34 total_mgCO2e=64.205
+  /logout: requests=100 energy_mWh=0.927 total_mgCO2e=1.013
+\end{lstlisting}
+
 
 The largest contribution in the replayed estimate is \texttt{/login}, followed by \texttt{/deleteAllToDos}. In particular, \texttt{/deleteAllToDos} is modelled as a constant endpoint based on calibration runs where cleanup happened after large benchmark batches. In the click-through validation, however, the same endpoint usually deletes only zero or one item per iteration. This mismatch between calibration workload and validation workload introduces a systematic bias even though the URI is the same.
 
@@ -663,18 +792,39 @@ At route level, the dominant endpoints show only minor changes: \texttt{/login} 
 
 For the AI endpoint, the paired runs exhibit substantially higher variability: the average idle-subtracted energy changes from \SI{42.3}{mWh} to \SI{217.1}{mWh} per request, and runtime increases from \SI{1.04}{s} to \SI{4.73}{s}. Such variation cannot plausibly be attributed to the disclosure mechanism and reflects inherent variability in the inference workload. A dedicated microbenchmark would be required to isolate overhead for AI serving.
 
-These results indicate that per-request model evaluation and disclosure can be integrated into the HTTP server with negligible overhead for conventional web workloads.
-
-
+These results indicate that per-request model evaluation and disclosure can be
+integrated into the HTTP server with low overhead for conventional web
+workloads.
 
 
 \section{Discussion}
 
-The proposed approach is useful not only for external disclosure, but also for internal provider-side analytics. Today, software producers typically have access to request counts, latency, and cost, but lack visibility into the energy or emissions associated with their own endpoints, as hosting providers rarely expose fine-grained power data. By benchmarking services offline and deriving per-endpoint models, providers can combine these models with routine HTTP logs (e.g., request time, payload size, response size, and application-level variables such as token counts) to estimate and aggregate energy or \(\mathrm{CO_2e}\) across endpoints, customers, or time windows. This provides a practical form of energy observability even when the underlying infrastructure remains opaque.
+The proposed approach is useful not only for external disclosure, but also for
+internal provider-side analytics. Today, software producers typically have
+access to request counts, latency, and cost, but lack visibility into the
+energy or emissions associated with their own endpoints, as hosting providers
+rarely expose fine-grained power data. By benchmarking services offline and
+deriving per-endpoint models, providers can combine these models with routine
+HTTP logs (e.g., request time, payload size, response size, and
+application-level variables such as token counts) to estimate and aggregate
+energy or \(\mathrm{CO_2e}\) across endpoints, customers, or time windows. This
+provides a practical form of energy observability even when the underlying
+infrastructure remains opaque.
+
 
 At the same time, the resulting estimates depend on modelling assumptions and system boundaries. A single request may involve multiple components such as caches, databases, queues, or external services. In our implementation, the system boundary is defined by the benchmarked deployment, which can include co-measured dependencies but cannot account for opaque third-party services unless their impact is provided separately. Similarly, caching and intermediaries such as CDNs may shift where energy is expended, raising questions about how cache hits should be attributed (e.g., origin versus edge). Another important choice concerns whether reported values reflect marginal energy above idle or include a share of baseline system energy. Both interpretations are useful for different purposes, but must be made explicit for the resulting values to be interpretable.
 
 More generally, the approach produces model-based estimates rather than direct measurements. The fitted models are calibrated on a reference system and may therefore differ from production deployments due to variations in hardware, virtualization, co-located load, or regional grid conditions. As a result, the disclosed values should be interpreted as context-dependent estimates rather than hardware-independent ground truth. In practice, this implies that models may require recalibration when deployment conditions change, and that their primary value lies in capturing relative differences between request classes rather than absolute precision.
+
+Within a resource reduction framing, the value of such observability lies in whether it can
+help reshape software practice toward operating within ecological constraints,
+rather than merely making existing growth-oriented services easier to optimise
+\cite{nardi2018computingwithinlimits}. Request-level estimates can support more
+deliberate choices such as caching, batching, prompt reduction, endpoint
+selection, or internal carbon budgeting. At the same time, disclosure alone is
+not sufficient: if deployed uncritically, the same mechanism could be used only
+for reporting or for shifting responsibility onto users while leaving demand,
+service design, and infrastructure growth untouched.
 
 Finally, the approach does not explicitly quantify model error or uncertainty. Measurement noise, modelling choices, and unobserved factors can all influence the resulting estimates. While this limits the interpretability of absolute values, it does not invalidate their usefulness. Similar to other interface-level metrics such as latency or throughput, the estimates remain valuable as long as they provide stable and decision-relevant signals. The key contribution is therefore not exact metrological accuracy, but a reproducible and inspectable method for making the environmental implications of software visible at the interface where decisions are made.
 
