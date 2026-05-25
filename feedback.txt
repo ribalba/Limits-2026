@@ -1,0 +1,184 @@
+Dear authors,
+
+The 12th Workshop on Computing within Limits (LIMITS 2026) program
+committee is delighted to inform you that your submission #5 has been
+conditionally accepted (with shepherding) to appear in the conference.
+
+* Title: Measure Once, Model Everywhere: Model-Based Per-Request
+ Resource Consumption for HTTP
+* Authors: Geerd-Dietger Hoffmann (Green Coding Solutions GmbH);
+ Verena Majuntke (HTW Berlin)
+* Site: https://limits2026.hotcrp.com/paper/5?=
+
+We felt that the paper offers a substantial contribution to LIMITS, but
+requires some significant revisions to work as a valuable contribution.
+Please consider the reviews carefully and prepare to revise your paper.
+The timeline for the camera-ready submission is rather short, as you
+will know - please plan accordingly.
+
+A shepherd has been assigned to advise on revisions: Brian Sutherland
+<b.sutherland@utoronto.ca>
+
+Visit the submission site for reviews, comments, and related
+information. Reviews and comments are also included below. Overall, 15
+of 23 submissions were accepted after a busy period of reviews and
+discussions. Congratulations, and thank you for sending your work to
+LIMITS 2026!
+
+
+Please contact Christoph Becker <christoph.becker@utoronto.ca>, Daniel
+Pargman <pargman@kth.se>, or Oliver Bates <o.bates@lancaster.ac.uk> with
+any questions or concerns.
+
+- LIMITS 2026 Submissions
+https://limits2026.hotcrp.com
+
+Review #5A
+===========================================================================
+* Reviewer: Nils Bonfils <nils.bonfils@mail.utoronto.ca>
+
+Overall merit
+-------------
+2. Issues that can be resolved (w/shepherding)
+
+Fit for LIMITS
+--------------
+3. Good fit for LIMITS
+
+Reviewer familiarity
+--------------------
+2. Some familiarity
+
+Strengths
+---------
+The paper brings forth a model-based approach to disclose the energy use and carbon emissions associated with individual HTTP requests for REST-style web services.
+
+It highlights a gap in the current literature as the lack of methods to disclose the environmental impacts of HTTP endpoints. This seems particularly important as existing proposals seem to already suggest the addition of new HTTP headers in order to expose energy and carbon metrics at the protocol level but lacks details on how to do so.
+
+This work is very thorough and covers the theoretical and practical aspects for implementing such a model-based approach on top of demonstrating its feasibility through the case study of a prototype nginx plugin.
+
+Overall, this work is promising. It will help in advancing research about the environmental impacts of digital systems, particularly web-based systems.
+
+Comments for authors
+--------------------
+This work has a lot of potential and fills an important niche in. But it is currently held back by some "major" issues and a few minor ones. Addressing them will, in my opinion, make it a strong and impactful contribution.
+
+The idea of using model-based estimations for the carbon emission associated with HTTP requests and using it to populate HTTP headers is already an important conceptual contribution. This work goes further by describing an entire approach to building and using such a model while also demonstrating its feasibility through a prototype. This empirical aspect gives the paper a lot of "meat" and holds a lot of potential. However, I found myself wondering a couple of times whether the main contribution was the method or the case study. Making that distinction clearer for the reader (separating the methodological aspects from the implementation details AND clarifying which one is the main contribution) would strengthen the paper.
+
+=> Seperate Method and Case study and make clear that method is the core contribution
+
+While the contribution to the literature is well-articulated, I was missing stronger ties with the LIMITS (or LIMITS-adjacent) literature. I can foresee some potential arguments for why the LIMITS community might want to adopt such a method. Some examples include a method supporting arguments for digital sobriety/sufficiency or degrowth. This method could also support claims of low-impact of various designs for sustainable servers, notably the solar website or windernet. In fact, the discussion section felt more like a limitations or conclusion section save for the discussion around the non-neutrality and asymmetry of HTTP-based disclosure systems.
+
+=> Stronger ties with Limits literature. Also make clear why limits.
+    The fundamental problem is that modern IT systems seem like they are limitless. You can book compute with a click or through an API. This is not the case. You need to make the impact of usage felt by the consumer.
+
+
+This work has a lot of merit and holds potential. It is clear that there was significant work behind this paper (i.e. leveraging the author's own benchmarking system) and this is why I believe it deserve more attention to make it a strong contribution.
+
+Recommendations
+---------------
+## Major
+
+- The paper structure would benefit from a clearer separation between the method presentation, implementation details (case study) and results (section 4, 5, 6 and 7). For instance, some implementation details (e.g. endpoint names) are introduced in section 4.1 before the readers are introduced to those endpoints.
+- Unifying and tightening the terminology. A lot of specific terminology is used before it is defined or explained (e.g. "GMT" in 4.1 or "idle-subtracted energy" in 4.2). Sometimes, the terminology is inconsistent (e.g. "benchmark block", "workload block" or "block") and other times the terminology could benefit from more explicit definitions (e.g. "registry", "[RUNTIME]", or the different "boundaries": protocol, HTTP, server, system.).
+- A dedicated limitation section for the paper. The limitation in section 4.3 covers some limitations of the model-based approach but there are many other places in the paper where the authors highlights some limitations (e.g. last sentence of section 4.1 or the first half of section 8).
+- Strengthen and clarify the ties with the LIMITS literature.
+
+## Minor
+- Some assumptions are made clear but others are not clarified like the selection of HTTP features to account for (I am wondering why "Content-Type" is not accounted for which seems quite relevant), or claims, like in section 7.2.1, that the fact that the fitted model scales with the size of the returned collection is sufficient to approximate the workload-dependent behavior seems like it should be qualified or backed by empirical evidence. The following point might help with this one.
+- Some graphs, such as line graphs or scatterplots, could go a long way in presenting the results.
+- The outline in the beginning of section 4 is probably not needed
+- In section 4.2 there is no need to describe the equivalence between metric prefixes (e.g. g and mg).
+- Is there a threshold at which the deployment environment differs too much from the calibration environment to significantly impact prediction errors? This could go in the limitations along with an expended discussion on the limitations of interpretability and assumption around the modeling choices.
+- Please, do not use URL shorteners, while seemingly convenient they are very prone to bit rot and break the very concept of URLs. I would even suggest doubling web links with archive.org links.
+
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+
+Review #5B
+===========================================================================
+* Reviewer: Kurtis Heimerl <kheimerl@cs.washington.edu>
+
+Overall merit
+-------------
+3. Ready for publication (very minor issues)
+
+Fit for LIMITS
+--------------
+3. Good fit for LIMITS
+
+Reviewer familiarity
+--------------------
+3. Knowledgeable
+
+Strengths
+---------
+This paper does a great job exploring network power consumption modeling and building out a system that integrates that with HTTP messages. The modelling is described in significant depth but the system is deployed with real measurements (maybe just reports) and is a cool artifact for LIMITS. The area fit is very strong and the paper is clearly above the bar.
+
+Comments for authors
+--------------------
+Thank you for the submission! Overall, this is a clear accept to LIMITS. My big issue with the work is its length; it's on the high side for LIMITS and I'm not confident of the overall contribution. Primarily, there is an enormous amount of work on power consumption modelling and so, with the body of the work being largely the modelling task, I am unsure of the overall novelty of that section. At the same time, building out a prototype is cool and a good point in the design space.
+
+Recommendations
+---------------
+I'd cut down the modelling; take a well established modelling tool and then run from there.
+
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+
+Review #5C
+===========================================================================
+* Reviewer: Brian Sutherland <b.sutherland@utoronto.ca>
+
+Overall merit
+-------------
+3. Ready for publication (very minor issues)
+
+Fit for LIMITS
+--------------
+2. Borderline fit for LIMITS
+
+Reviewer familiarity
+--------------------
+2. Some familiarity
+
+Strengths
+---------
+What a clever idea!  A creative proposition to leverage the interoperabiity standards and rich international community discussions of HTTP and movement toward cloud based solutions for promoting sustainability and green computing, "fine-grained power telemetry" which you named "Software Carbon Intensity" SCI.
+
+Comments for authors
+--------------------
+"This paper makes four contributions" - very clear writing.  I didn't find that it engaged significantly with previous LIMITS scholarship (so far).  Typically at LIMITS we don't usually present detailed equations, calculations and technical metrics.  This technical content would certainly benefit from diagrams showing boundaries and information sources.  Tables 3 and 4 - units? - tables should stand on their own and not rely on close reading of the text.
+
+Recommendations
+---------------
+Fundamentally, I think the point of determining carbon emissions at the endpoint in real time is to do it more "exactly", so I would suggest you would need to come down stronger on the grid intensity problem: "it may be defined statically, updated periodically, or obtained from an internal service. "  "Makes the assumptions underlying the reported values explicit": what are the assumptions associated?  Are there any web services you could prototype that could supply grid intensity?  https://app.electricitymaps.com/map/live/fifteen_minutes, perhaps. The entanglement with AI was puzzling, since so much of AI emissions occurs at the server level, not at the edge or at an end point.   A stronger translation argument for tokens to carbon emissions might be necessary to make, but possibly it's out of scope if the primary aim of the article to measure client side consumption and present a cluster of bundling strategies for sharing the information with headers.    So -- strong work and very interesting, but it's a borderline fit for LIMITS.
+
+The program committee have agreed I may work with you to dial down the equation section into a clear level of explanation and examples which interdisciplinary LIMITS scholars can more easily follow, to express the technical foundations and terminology in more basic and consistent terms.  Other reviewers have suggested a clearer separation between the method presentation, implementation details (case study) and results (section 4, 5, 6 and 7).  You would also like to see the paper survey existing LIMITS scholarship for connections to this important new work.  The revised work I am describing would have a June 1 deadline for committee re-review (acceptance not guaranteed, but if the key changes are made, certainly likely), this is a status we call "Accepted with Shepherding".  I will try to answer any clarification questions or draft changes you may want to discuss in between in short order, I'm at [b.sutherland@utoronto.ca].
+
+Alternatively, the committee suggests you consider another publishing venue for this excellent proposal, one that is more aligned with the technical infrastructures of determining green computing, for example LOCO 26 [https://lancaster-university.github.io/loco2026/charter/].  Thank you Verena and Geerd-Dietger, and do reach out if you have any questions as to the revisions we are requesting.
+
+Greetings,
+
+Review #5C for 12th Workshop on Computing within Limits (LIMITS 2026)
+submission #5 has been updated. The review is available on the
+submission site.
+
+* Title: Measure Once, Model Everywhere: Model-Based Per-Request
+ Resource Consumption for HTTP
+* Authors: Geerd-Dietger Hoffmann (Green Coding Solutions GmbH);
+ Verena Majuntke (HTW Berlin)
+* Review by: Brian Sutherland <b.sutherland@utoronto.ca>
+* Site: https://limits2026.hotcrp.com/paper/5
+
+For the most up-to-date reviews and comments, or to unsubscribe from
+email notification, see the submission site.
+
+Contact Christoph Becker <christoph.becker@utoronto.ca> with any
+questions or concerns.
+
+- LIMITS 2026 Submissions
+https://limits2026.hotcrp.com
+
