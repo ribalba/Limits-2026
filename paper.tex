@@ -61,10 +61,14 @@
   rulecolor=\color{black!20},
   xleftmargin=0.0em,
   xrightmargin=0.0em,
-  aboveskip=0.6em,
-  belowskip=0.6em,
+  aboveskip=0em,
+  belowskip=0em,
   escapeinside={(*@}{@*)}
 }
+
+\setlength{\textfloatsep}{6pt plus 1pt minus 2pt}
+\setlength{\floatsep}{6pt plus 1pt minus 2pt}
+\setlength{\intextsep}{6pt plus 1pt minus 2pt}
 
 \title{Measure Once, Model Everywhere:\\ Model-Based Per-Request Resource Consumption for HTTP}
 
@@ -87,7 +91,7 @@
 
 
 \begin{abstract}
-Recent proposals for HTTP-based sustainability disclosure focus on \textbf{what} environmental information should be transmitted at the protocol boundary, for example through response headers, but leave open the practical question of \textbf{how} such per-request values can be generated in realistic deployments. This paper addresses that implementation gap. We present a model-based approach for estimating resource consumption and \(\mathrm{CO_2e}\) per HTTP request without requiring fine-grained production power telemetry. The approach benchmarks endpoints offline under controlled conditions, derives compact endpoint-specific energy models from observable request features, and evaluates these models online at the HTTP server boundary. We implement this mechanism as an nginx extension that loads a JSON model registry and emits per-request metadata for energy, grid intensity, embodied emissions, and total request-level impact. Using a benchmark application with conventional CRUD (Create, Read, Update, Delete) endpoints and an LLM inference endpoint, we show that heterogeneous request classes can be represented with constant, linear, and piecewise models, including token-based modelling for inference workloads. Our evaluation indicates that the approach is operationally feasible and introduces only low runtime overhead.
+Recent proposals for HTTP-based sustainability disclosure focus on \textbf{what} environmental information should be transmitted at the protocol boundary, for example through response headers, but leave open the practical question of \textbf{how} such per-request values can be generated in realistic deployments. This paper addresses that implementation gap. We present a model-based approach for estimating resource consumption and $CO_2e$ per HTTP request without requiring fine-grained production power telemetry. The approach benchmarks endpoints offline under controlled conditions, derives compact endpoint-specific energy models from observable request features, and evaluates these models online at the HTTP server boundary. We implement this mechanism as an nginx extension that loads a JSON model registry and emits per-request metadata for energy, grid intensity, embodied emissions, and total request-level impact. Using a benchmark application with conventional CRUD (Create, Read, Update, Delete) endpoints and an LLM inference endpoint, we show that heterogeneous request classes can be represented with constant, linear, and piecewise models, including token-based modelling for inference workloads. Our evaluation indicates that the approach is operationally feasible and introduces only low runtime overhead.
 \end{abstract}
 \maketitle
 
@@ -777,8 +781,8 @@ Taken together, these results indicate that per-request model evaluation and dis
 
 \begin{table}[h]
 \centering
-\scriptsize
-\caption{Measured energy comparison for constant-cost authentication endpoints. Values show mean machine energy in mWh for each benchmark block.}
+\small
+\caption{Measured energy for authentication endpoints.}
 \label{tab:compare-constant-endpoints}
 \begin{tabular}{llrr}
 \toprule
@@ -792,9 +796,9 @@ Constant & No Header & 678.59 $\pm$ 0.88\% & 14.42 $\pm$ 18.44\% \\
 \end{table}
 
 \begin{table}[h]
-\scriptsize
+\small
 \centering
-\caption{Measured energy comparison for text-based workload steps. Values show mean machine energy in mWh for each benchmark block.}
+\caption{Measured energy for text-based workloads.}
 \label{tab:compare-text-loads}
 \begin{tabular}{llrrr}
 \toprule
@@ -820,9 +824,9 @@ Load & Variant & CreateToDo & GetToDos & Done \\
 \end{table}
 
 \begin{table}[h]
-\scriptsize
+\small
 \centering
-\caption{Measured energy comparison for file-upload workload steps. Values show mean machine energy in mWh for each benchmark block.}
+\caption{Measured energy  for file-upload.}
 \label{tab:compare-file-loads}
 \begin{tabular}{llr}
 \toprule
@@ -906,7 +910,10 @@ freely available at \url{https://github.com/ribalba/Limits-2026/tree/main/code}.
 All measurement runs referenced in this work are available at
 \url{https://metrics.green-coding.io/runs.html}.
 
+\section*{Funding}
+This work was funded by the Deutsche Bundesstiftung Umwelt (DBU).
 
+\clearpage
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bib}
 
