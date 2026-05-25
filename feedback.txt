@@ -65,11 +65,11 @@ This work has a lot of potential and fills an important niche in. But it is curr
 
 The idea of using model-based estimations for the carbon emission associated with HTTP requests and using it to populate HTTP headers is already an important conceptual contribution. This work goes further by describing an entire approach to building and using such a model while also demonstrating its feasibility through a prototype. This empirical aspect gives the paper a lot of "meat" and holds a lot of potential. However, I found myself wondering a couple of times whether the main contribution was the method or the case study. Making that distinction clearer for the reader (separating the methodological aspects from the implementation details AND clarifying which one is the main contribution) would strengthen the paper.
 
-=> Seperate Method and Case study and make clear that method is the core contribution
++ Seperated Method and Case study and made it clear that method is the core contribution
 
 While the contribution to the literature is well-articulated, I was missing stronger ties with the LIMITS (or LIMITS-adjacent) literature. I can foresee some potential arguments for why the LIMITS community might want to adopt such a method. Some examples include a method supporting arguments for digital sobriety/sufficiency or degrowth. This method could also support claims of low-impact of various designs for sustainable servers, notably the solar website or windernet. In fact, the discussion section felt more like a limitations or conclusion section save for the discussion around the non-neutrality and asymmetry of HTTP-based disclosure systems.
 
-=> Stronger ties with Limits literature. Also make clear why limits.
++ Stronger ties with Limits literature. Also make clear why limits.
     The fundamental problem is that modern IT systems seem like they are limitless. You can book compute with a click or through an API. This is not the case. You need to make the impact of usage felt by the consumer.
 
 
@@ -80,18 +80,27 @@ Recommendations
 ## Major
 
 - The paper structure would benefit from a clearer separation between the method presentation, implementation details (case study) and results (section 4, 5, 6 and 7). For instance, some implementation details (e.g. endpoint names) are introduced in section 4.1 before the readers are introduced to those endpoints.
+  + §§5--6 renamed "Case Study"; endpoint names and GMT references removed from §4; registry-generation moved from §4 to §7.1.
 - Unifying and tightening the terminology. A lot of specific terminology is used before it is defined or explained (e.g. "GMT" in 4.1 or "idle-subtracted energy" in 4.2). Sometimes, the terminology is inconsistent (e.g. "benchmark block", "workload block" or "block") and other times the terminology could benefit from more explicit definitions (e.g. "registry", "[RUNTIME]", or the different "boundaries": protocol, HTTP, server, system.).
+  + Defined registry, idle-subtracted, boundaries (footnote in §4); rephrased [RUNTIME]; unified "benchmark condition" throughout.
 - A dedicated limitation section for the paper. The limitation in section 4.3 covers some limitations of the model-based approach but there are many other places in the paper where the authors highlights some limitations (e.g. last sentence of section 4.1 or the first half of section 8).
+  + New §Limitations between Evaluation and Discussion; scattered limitations consolidated into four classes.
 - Strengthen and clarify the ties with the LIMITS literature.
+  + Added Mytton, Pargman & Raghavan, Becker, Raghavan & Ma, De Decker; LIMITS-aligned framing woven through Intro, Related Work, Discussion (sufficiency/sobriety/degrowth/solar website).
 
 ## Minor
 - Some assumptions are made clear but others are not clarified like the selection of HTTP features to account for (I am wondering why "Content-Type" is not accounted for which seems quite relevant), or claims, like in section 7.2.1, that the fact that the fitted model scales with the size of the returned collection is sufficient to approximate the workload-dependent behavior seems like it should be qualified or backed by empirical evidence. The following point might help with this one.
+  + Added feature-selection criteria + explicit Content-Type justification in §5.5.
 - Some graphs, such as line graphs or scatterplots, could go a long way in presenting the results.
+  + Added Figure 1: /createToDo curve fit (left) and /ai measured-vs-predicted scatter (right).
 - The outline in the beginning of section 4 is probably not needed
+  + Removed.
 - In section 4.2 there is no need to describe the equivalence between metric prefixes (e.g. g and mg).
+  + Removed; emission equations no longer carry decorative unit-prefix factors.
 - Is there a threshold at which the deployment environment differs too much from the calibration environment to significantly impact prediction errors? This could go in the limitations along with an expended discussion on the limitations of interpretability and assumption around the modeling choices.
+  + Covered in §Limitations "Deployment dependence" and recalibration note.
 - Please, do not use URL shorteners, while seemingly convenient they are very prone to bit rot and break the very concept of URLs. I would even suggest doubling web links with archive.org links.
-
+  + All five tinyurl links replaced with full metrics.green-coding.io URLs;
 
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
@@ -123,6 +132,7 @@ Thank you for the submission! Overall, this is a clear accept to LIMITS. My big 
 Recommendations
 ---------------
 I'd cut down the modelling; take a well established modelling tool and then run from there.
+  + Equations in §4 dialled down; LLM example formula removed from method; trimmed paper
 
 
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -151,12 +161,16 @@ What a clever idea!  A creative proposition to leverage the interoperabiity stan
 Comments for authors
 --------------------
 "This paper makes four contributions" - very clear writing.  I didn't find that it engaged significantly with previous LIMITS scholarship (so far).  Typically at LIMITS we don't usually present detailed equations, calculations and technical metrics.  This technical content would certainly benefit from diagrams showing boundaries and information sources.  Tables 3 and 4 - units? - tables should stand on their own and not rely on close reading of the text.
+  + LIMITS engagement strengthened across Intro/Related Work/Discussion; equations simplified; Tables 3,4, 5 now have units in column headers and self-contained captions.
 
 Recommendations
 ---------------
 Fundamentally, I think the point of determining carbon emissions at the endpoint in real time is to do it more "exactly", so I would suggest you would need to come down stronger on the grid intensity problem: "it may be defined statically, updated periodically, or obtained from an internal service. "  "Makes the assumptions underlying the reported values explicit": what are the assumptions associated?  Are there any web services you could prototype that could supply grid intensity?  https://app.electricitymaps.com/map/live/fifteen_minutes, perhaps. The entanglement with AI was puzzling, since so much of AI emissions occurs at the server level, not at the edge or at an end point.   A stronger translation argument for tokens to carbon emissions might be necessary to make, but possibly it's out of scope if the primary aim of the article to measure client side consumption and present a cluster of bundling strategies for sharing the information with headers.    So -- strong work and very interesting, but it's a borderline fit for LIMITS.
+  + Grid intensity reframed as static-vs-dynamic with explicit ElectricityMaps/WattTime references in §4.2, §6.2, §7.1.
+  + AI reframed as one example of application-supplied features; explicit disclaimer that hosted inference at scale is out of scope.
 
 The program committee have agreed I may work with you to dial down the equation section into a clear level of explanation and examples which interdisciplinary LIMITS scholars can more easily follow, to express the technical foundations and terminology in more basic and consistent terms.  Other reviewers have suggested a clearer separation between the method presentation, implementation details (case study) and results (section 4, 5, 6 and 7).  You would also like to see the paper survey existing LIMITS scholarship for connections to this important new work.  The revised work I am describing would have a June 1 deadline for committee re-review (acceptance not guaranteed, but if the key changes are made, certainly likely), this is a status we call "Accepted with Shepherding".  I will try to answer any clarification questions or draft changes you may want to discuss in between in short order, I'm at [b.sutherland@utoronto.ca].
+  + Equations dialled down with intuition-first prose; method/case-study/results restructured; LIMITS-adjacent scholarship surveyed in Related Work.
 
 Alternatively, the committee suggests you consider another publishing venue for this excellent proposal, one that is more aligned with the technical infrastructures of determining green computing, for example LOCO 26 [https://lancaster-university.github.io/loco2026/charter/].  Thank you Verena and Geerd-Dietger, and do reach out if you have any questions as to the revisions we are requesting.
 
