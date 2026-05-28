@@ -311,7 +311,7 @@ Any concrete instantiation requires accounting choices, for example whether benc
 
 
 %-----------------------------------------------------------------------------------------
-\section{Case Study: Measurement Setup and Data Collection}
+\section{Implementation}
 %-----------------------------------------------------------------------------------------
 \label{sec:measurement}
 This section instantiates the method of Section~\ref{sec:methods} on a concrete benchmark application. It describes how we generate per-request energy labels \(E\) (in \(\mathrm{mWh}\)) from controlled experiments. These measurements form the basis for fitting the per-endpoint energy models described in Section~\ref{sec:methods}. For each request, we record energy at the machine boundary and associate it with request-level observations obtained during benchmarking, including request processing time, data transfer volume, and endpoint-specific workload parameters.
@@ -444,7 +444,7 @@ Energy is expressed in \(\mathrm{mWh}\); grid intensity in \(\mathrm{gCO_2e/kWh}
 The computed values are exposed via response headers, separating the underlying components of the calculation rather than encoding everything in a single aggregated value. This keeps the modelling assumptions explicit at the boundary:
 \begin{itemize}
   \item \texttt{Request-Energy}: per-request energy, in \(\mathrm{mWh}\).
-  \item \texttt{Grid-Intensity}: grid intensity used for conversion, in \(\mathrm{gCO_2e/kWh}\).
+  \item \texttt{Grid-Intensity}: grid intensity in \(\mathrm{gCO_2e/kWh}\).
   \item \texttt{Request-Embodied-CO2e}: embodied share allocated to the request, in \(\mathrm{mgCO_2e}\).
   \item \texttt{Request-SCI}: total per-request emissions, in \(\mathrm{mgCO_2e}\).
 \end{itemize}
@@ -477,9 +477,9 @@ We evaluate the approach as a feasibility study: the benchmark suite was execute
 
 \subsection{Model Derivation and Parametrisation}
 
-We convert the GMT export into the JSON registry of Listing~\ref{lst:json-registry}, instantiating all three model families. Family assignment was driven by workload-scaling benchmarks: for example, we issued between 1 and 1000 calls to \texttt{/login} to confirm that per-request energy remained stable~\cite{gmt-run-login-scaling}. \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} produced near-constant profiles and use constant models; \texttt{/createToDo} and \texttt{/getToDos} showed payload-dependent scaling and use curve models with measured support points and piecewise-linear interpolation; \texttt{/ai} uses a least-squares linear model over an intercept plus prompt- and generated-token counts.
+We convert the GMT export into the JSON registry of Listing~\ref{lst:json-registry}, instantiating all three model families. Family assignment was driven by workload-scaling benchmarks: for example, we issued between 1 and 1000 calls to \texttt{/login} to confirm that per-request energy remained stable~\cite{gmt-run-login-scaling}. \texttt{/login}, \texttt{/logout}, \texttt{/done}, and \texttt{/deleteAllToDos} produced near-constant profiles and use constant models;\\ \texttt{/createToDo} and \texttt{/getToDos} showed payload-dependent scaling and use curve models with measured support points and piecewise-linear interpolation; \texttt{/ai} uses a least-squares linear model over an intercept plus prompt- and generated-token counts.
 
-For the measured system, grid intensity is configured statically at \(\num{121.111}\,\mathrm{gCO_2e/kWh}\) and the embodied allocation rate at \(\num{0.001}\,\mathrm{gCO_2e/s}\); in production, the intensity could be refreshed from Electricity Maps~\cite{electricitymaps} or WattTime~\cite{watttime} (Section~\ref{subsec:emissions}). The registry is derived from total machine energy rather than idle-subtracted measurements, and HTTPS/TLS overhead is excluded from the calibration; both choices are limitations discussed in Section~\ref{sec:limitations}.
+For the measured system, grid intensity is configured statically at \(\num{121.111}\,\mathrm{gCO_2e/kWh}\) and the embodied allocation rate at \\ \(\num{0.001}\,\mathrm{gCO_2e/s}\); in production, the intensity could be refreshed from Electricity Maps~\cite{electricitymaps} or WattTime~\cite{watttime} (Section~\ref{subsec:emissions}). The registry is derived from total machine energy rather than idle-subtracted measurements, and HTTPS/TLS overhead is excluded from the calibration; both choices are limitations discussed in Section~\ref{sec:limitations}.
 
 \begin{table}[h]
 \small
